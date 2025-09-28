@@ -1,15 +1,22 @@
-# Yu-Gi-Oh! Card Image Downloader
+# Yu-Gi-Oh! Card Image Downloader with Points Overlay
 
-A fast and efficient Python script to download Yu-Gi-Oh! card images directly from YGOPRODeck using card codes from a JSON file.
+A fast and efficient Python script to download Yu-Gi-Oh! card images directly from YGOPRODeck using card codes from a JSON file and automatically overlays point values on each card.
 
 ## Features
 
 - **Direct image downloads** - No API calls needed, uses direct image URLs
+- **Points overlay** - Automatically adds point values from JSON as visible text on each card
+- **Color-coded points** - Different background colors based on point values:
+  - 🔴 Red: 50+ points (high value)
+  - 🟠 Orange: 20-49 points (medium-high value)
+  - 🟡 Yellow: 10-19 points (medium value)
+  - 🟢 Green: 1-9 points (low value)
+- **Smart font sizing** - Automatically scales text size based on image dimensions
 - **Simple naming** - Images saved as `{card_code}.jpg` (e.g., `21044178.jpg`)
-- **Fast downloads** - Much faster than API-based approach
+- **Fast processing** - Efficient image processing with PIL/Pillow
 - **Configurable delays** - Respectful rate limiting
-- **Comprehensive error handling** - Graceful handling of missing cards
-- **Progress reporting** - Real-time download progress
+- **Comprehensive error handling** - Graceful handling of missing cards or processing errors
+- **Progress reporting** - Real-time download and processing progress
 
 ## Installation
 
@@ -33,6 +40,8 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```bash
 pip install -r requirements.txt
 ```
+
+**Note**: The script now requires Pillow (PIL) for image processing to add point overlays.
 
 ## Usage
 
@@ -92,16 +101,29 @@ Optional fields:
 
 ## Output
 
-Images are saved with simple naming:
+Images are saved with simple naming and include point overlays:
 ```
 {card_code}.jpg
 ```
 
 For example:
-- `21044178.jpg` (Abyss Dweller)
-- `98287529.jpg` (Amorphactor Pain, the Imagination Dracoverlord)
+- `21044178.jpg` (Abyss Dweller with points overlay)
+- `98287529.jpg` (Amorphactor Pain with points overlay)
 
-All images are high-quality full-resolution JPEG files directly from YGOPRODeck.
+### Point Overlay System
+
+Each card image will have its point value displayed in the **bottom-left corner** with:
+- **Large, readable text** - Automatically sized based on image dimensions (minimum 40px)
+- **Properly sized colored background** - Rectangle automatically fits the number perfectly
+- **Color-coded backgrounds** for quick identification:
+  - 🔴 **Red background** (white text): 50+ points
+  - 🟠 **Orange background** (black text): 20-49 points  
+  - 🟡 **Yellow background** (black text): 10-19 points
+  - 🟢 **Green background** (black text): 1-9 points
+- **Semi-transparent background** - Points are visible without completely obscuring the card art
+- **Centered text** - Numbers are perfectly centered within their colored rectangles
+
+All images are high-quality full-resolution JPEG files with the point values clearly overlaid.
 
 ## Image Sources
 
@@ -128,9 +150,10 @@ The script handles various error conditions:
 - Missing or invalid JSON files
 - Network connectivity issues
 - Missing card images
+- Image processing errors
 - File system errors
 
-Failed downloads are reported at the end of the process.
+If point overlay processing fails for any image, the script will save the original image without the overlay and continue processing.
 
 ## Example Output
 
@@ -140,12 +163,12 @@ Failed downloads are reported at the end of the process.
 📊 Found 2681 cards to process
 
 [1/2681] Processing card 21044178
-📥 Downloading image for: 深渊的潜伏者 (ID: 21044178)
-  ✅ Downloaded: 21044178.jpg
+📥 Downloading image for: 深渊的潜伏者 (ID: 21044178, Points: 100)
+  ✅ Downloaded with 100 points overlay: 21044178.jpg
 
 [2/2681] Processing card 98287529
-📥 Downloading image for: 虚龙魔王 无形矢·心灵 (ID: 98287529)
-  ✅ Downloaded: 98287529.jpg
+📥 Downloading image for: 虚龙魔王 无形矢·心灵 (ID: 98287529, Points: 67)
+  ✅ Downloaded with 67 points overlay: 98287529.jpg
 
 ...
 
@@ -159,10 +182,13 @@ Failed downloads are reported at the end of the process.
 
 - Much faster than API-based approaches (no API calls needed)
 - Simple, consistent file naming using card codes
-- Images are high-quality full-resolution JPEGs
+- **Point values are clearly visible** on each card image for easy identification
+- **Automatic color coding** helps quickly identify high-value vs low-value cards
+- Images are high-quality full-resolution JPEGs with professional overlays
 - The script will create the output directory if it doesn't exist
 - Comprehensive error handling and progress reporting
 - Respectful rate limiting to avoid overwhelming servers
+- Works with any font available on the system, falls back gracefully if none found
 
 ## License
 
