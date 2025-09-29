@@ -90,6 +90,12 @@ class YugiohCardDownloader:
             # Open image from bytes
             image = Image.open(io.BytesIO(image_data))
             
+            # Resize image to optimize file size (standard card size for games)
+            # Keep aspect ratio but limit maximum dimensions to reduce file size
+            max_width, max_height = 421, 614  # Standard YGO card proportions but smaller
+            if image.width > max_width or image.height > max_height:
+                image.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
+            
             # Create a drawing context
             draw = ImageDraw.Draw(image)
             
@@ -190,9 +196,10 @@ class YugiohCardDownloader:
                 rgb_image.paste(image, mask=image.split()[-1])  # Use alpha channel as mask
                 image = rgb_image
             
-            # Save to bytes
+            # Save to bytes with optimized compression for smaller file size
             output_buffer = io.BytesIO()
-            image.save(output_buffer, format='JPEG', quality=95)
+            # Use lower quality and optimize for smaller file size (~30KB target)
+            image.save(output_buffer, format='JPEG', quality=45, optimize=True)
             return output_buffer.getvalue()
             
         except Exception as e:
