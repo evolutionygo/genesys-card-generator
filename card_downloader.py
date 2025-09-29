@@ -90,9 +90,8 @@ class YugiohCardDownloader:
             # Open image from bytes
             image = Image.open(io.BytesIO(image_data))
             
-            # Resize image to optimize file size (standard card size for games)
-            # Keep aspect ratio but limit maximum dimensions to reduce file size
-            max_width, max_height = 421, 614  # Standard YGO card proportions but smaller
+            # Redimensionar la imagen si es más grande que las dimensiones máximas
+            max_width, max_height = 316, 461  # Standard YGO card proportions but smaller
             if image.width > max_width or image.height > max_height:
                 image.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
             
@@ -103,8 +102,8 @@ class YugiohCardDownloader:
             img_width, img_height = image.size
             
             # Calculate font size based on image size (larger for bigger images)
-            base_font_size = min(img_width, img_height) // 8  # Start with 1/8 of smaller dimension
-            font_size = max(base_font_size, 40)  # Minimum 40px for visibility
+            base_font_size = min(img_width, img_height) // 4  # Start with 1/4 of smaller dimension
+            font_size = max(base_font_size, 80)  # Minimum 80px for visibility
             
             # Get font
             font = self.get_font(font_size)
@@ -199,7 +198,7 @@ class YugiohCardDownloader:
             # Save to bytes with optimized compression for smaller file size
             output_buffer = io.BytesIO()
             # Use lower quality and optimize for smaller file size (~30KB target)
-            image.save(output_buffer, format='JPEG', quality=45, optimize=True)
+            image.save(output_buffer, format='JPEG', quality=50, optimize=True)
             return output_buffer.getvalue()
             
         except Exception as e:
