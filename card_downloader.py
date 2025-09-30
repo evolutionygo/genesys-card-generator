@@ -90,7 +90,7 @@ class YugiohCardDownloader:
             # Open image from bytes
             image = Image.open(io.BytesIO(image_data))
             
-            # Redimensionar la imagen si es más grande que las dimensiones máximas
+            # Resize the image if it is larger than the maximum dimensions
             max_width, max_height = 316, 461  # Standard YGO card proportions but smaller
             if image.width > max_width or image.height > max_height:
                 image.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
@@ -108,7 +108,7 @@ class YugiohCardDownloader:
             # Get font
             font = self.get_font(font_size)
             if not font:
-                font_size = 40  # Fallback size
+                font_size = 60  # Fallback size
             
             # Text to display
             text = str(points)
