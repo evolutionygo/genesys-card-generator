@@ -1,16 +1,12 @@
-# Yu-Gi-Oh! Card Image Downloader with Points Overlay
+# Yu-Gi-Oh! Card Image Downloader with (Genesys) Points Overlay
 
-A fast and efficient Python script to download Yu-Gi-Oh! card images directly from YGOPRODeck using card codes from a JSON file and automatically overlays point values on each card.
+A fast and efficient Python script to download Yu-Gi-Oh! card images directly from YGOPRODeck using card codes from a JSON file and automatically overlays Genesys point values on each card.
 
 ## Features
 
 - **Direct image downloads** - No API calls needed, uses direct image URLs
 - **Points overlay** - Automatically adds point values from JSON as visible text on each card
-- **Color-coded points** - Different background colors based on point values:
-  - 🔴 Red: 50+ points (high value)
-  - 🟠 Orange: 20-49 points (medium-high value)
-  - 🟡 Yellow: 10-19 points (medium value)
-  - 🟢 Green: 1-9 points (low value)
+- **Color-coded points** - Background colors change based on point values for quick identification.
 - **Smart font sizing** - Automatically scales text size based on image dimensions
 - **Simple naming** - Images saved as `{card_code}.jpg` (e.g., `21044178.jpg`)
 - **Fast processing** - Efficient image processing with PIL/Pillow
@@ -54,6 +50,8 @@ source venv/bin/activate  # Activate virtual environment first
 python3 card_downloader.py
 ```
 
+Images will be saved to the `downloaded_cards` directory, which will be created automatically if it doesn't exist.
+
 ### Advanced Usage
 
 ```bash
@@ -87,17 +85,17 @@ The JSON file should contain an array of card objects with at least a `code` fie
   {
     "code": 98287529,
     "name": "虚龙魔王 无形矢·心灵",
-    "points": 100
+    "points": 67
   }
 ]
 ```
 
 Required fields:
-- `code`: The Yu-Gi-Oh! card ID/code (integer)
+- `code`: The Yu-Gi-Oh! card ID/code (integer).
+- `points`: The point value (integer) to be overlaid on the card image.
 
 Optional fields:
-- `name`: Card name (will be used for filename if available)
-- `points`: Any additional data (ignored by downloader)
+- `name`: Card name, used for progress messages in the console.
 
 ## Output
 
@@ -113,7 +111,7 @@ For example:
 ### Point Overlay System
 
 Each card image will have its point value displayed in the **bottom-left corner** with:
-- **Large, readable text** - Automatically sized based on image dimensions (minimum 40px)
+- **Large, readable text** - Automatically sized based on image dimensions (minimum 60px)
 - **Properly sized colored background** - Rectangle automatically fits the number perfectly
 - **Color-coded backgrounds** for quick identification:
   - 🔴 **Red background** (white text): 50+ points
@@ -121,9 +119,10 @@ Each card image will have its point value displayed in the **bottom-left corner*
   - 🟡 **Yellow background** (black text): 10-19 points
   - 🟢 **Green background** (black text): 1-9 points
 - **Semi-transparent background** - Points are visible without completely obscuring the card art
-- **Centered text** - Numbers are perfectly centered within their colored rectangles
+- **Centered text** - Numbers are centered within their colored rectangles
+- **System font detection** - Works with any suitable font available on the system, with a graceful fallback if none are found.
 
-All images are high-quality full-resolution JPEG files with the point values clearly overlaid.
+All images are high-quality JPEG files with the point values clearly overlaid.
 
 ## Image Sources
 
@@ -177,18 +176,6 @@ If point overlay processing fails for any image, the script will save the origin
 ❌ Failed downloads: 31 cards
 📁 Images saved to: /Users/diego/personal/ygopro/genesys-card-generator/downloaded_cards
 ```
-
-## Notes
-
-- Much faster than API-based approaches (no API calls needed)
-- Simple, consistent file naming using card codes
-- **Point values are clearly visible** on each card image for easy identification
-- **Automatic color coding** helps quickly identify high-value vs low-value cards
-- Images are high-quality full-resolution JPEGs with professional overlays
-- The script will create the output directory if it doesn't exist
-- Comprehensive error handling and progress reporting
-- Respectful rate limiting to avoid overwhelming servers
-- Works with any font available on the system, falls back gracefully if none found
 
 ## License
 
