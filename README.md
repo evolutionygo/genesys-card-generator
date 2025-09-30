@@ -58,7 +58,7 @@ python3 card_downloader.py
 
 ```bash
 # Specify a different JSON file
-python3 card_downloader.py /path/to/your/cards.json
+python3 card_downloader.py --file /path/to/your/cards.json
 
 # Specify output directory
 python3 card_downloader.py -o /path/to/output/directory
@@ -69,7 +69,7 @@ python3 card_downloader.py -d 0.2
 
 ### Command Line Options
 
-- `cards_json`: Path to the cards JSON file (default: `cards.json`)
+- `-f, --file`: Path to the cards JSON file (default: `cards.json`)
 - `-o, --output`: Output directory for downloaded images (default: `downloaded_cards`)
 - `-d, --delay`: Delay between downloads in seconds (default: 0.1)
 

@@ -18,7 +18,7 @@ import io
 
 
 class YugiohCardDownloader:
-    """Downloads Yu-Gi-Oh! card images directly from YGOPRODeck and adds point overlays."""
+    """Downloads Yu-Gi-Oh! card images directly from YGOPRODeck and adds Genesys point overlays."""
     
     BASE_IMAGE_URL = "https://images.ygoprodeck.com/images/cards"
     DEFAULT_OUTPUT_DIR = "downloaded_cards"
@@ -320,8 +320,7 @@ def main():
     
     parser = argparse.ArgumentParser(description='Download Yu-Gi-Oh! card images')
     parser.add_argument(
-        'cards_json',
-        nargs='?',
+        '-f', '--file',
         default='cards.json',
         help='Path to cards JSON file (default: cards.json)'
     )
@@ -339,8 +338,8 @@ def main():
     
     args = parser.parse_args()
     
-    if not os.path.exists(args.cards_json):
-        print(f"❌ Cards JSON file not found: {args.cards_json}")
+    if not os.path.exists(args.file):
+        print(f"❌ Cards JSON file not found: {args.file}")
         sys.exit(1)
     
     downloader = YugiohCardDownloader(
@@ -348,7 +347,7 @@ def main():
         delay=args.delay
     )
     
-    downloader.download_all_cards(args.cards_json)
+    downloader.download_all_cards(args.file)
 
 
 if __name__ == '__main__':
