@@ -7,6 +7,8 @@ env/
 downloaded_cards/
 test_downloads*/
 evolution-genesys-cards/
+selected_images/
+selected_images_processed/
 *.zip
 
 # OS generated files

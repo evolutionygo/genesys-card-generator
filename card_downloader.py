@@ -75,13 +75,14 @@ class YugiohCardDownloader:
         except:
             return None
     
-    def add_points_overlay(self, image_data: bytes, points: int) -> bytes:
+    def add_points_overlay(self, image_data: bytes, points: int, font_scale: float = 1.0) -> bytes:
         """
         Add points overlay to the image.
         
         Args:
             image_data: Original image data as bytes
             points: Points value to overlay
+            font_scale: Scale factor for font size (default: 1.0)
             
         Returns:
             Modified image data as bytes
@@ -104,6 +105,9 @@ class YugiohCardDownloader:
             # Calculate font size based on image size (larger for bigger images)
             base_font_size = min(img_width, img_height) // 4  # Start with 1/4 of smaller dimension
             font_size = max(base_font_size, 80)  # Minimum 80px for visibility
+            
+            # Apply font scale
+            font_size = int(font_size * font_scale)
             
             # Get font
             font = self.get_font(font_size)
