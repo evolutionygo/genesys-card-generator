@@ -118,7 +118,7 @@ class YugiohCardDownloader:
             # looks consistent across thumbnails and high-quality renders.
             # font_scale is only used later to detect downloaded cards, not to
             # size the badge.
-            diameter = max(int(img_width * 0.341), 71)
+            diameter = max(int(img_width * 0.341 * 1.25), 71)
 
             # Fit the number inside the circle: pick the largest font whose
             # number fits within ~70% of the diameter (both width and height).
