@@ -47,7 +47,35 @@ class AliasOverlayProcessor:
         self.alias_data = self._load_alias_data()
         
     def _load_cards_data(self) -> Dict:
-        """Load cards.json and create a lookup dictionary by code."""
+        """Load a Genesys source file and create a lookup dictionary by code."""
+        if self.cards_json_path.suffix.lower() == '.conf':
+            cards_dict = {}
+            in_genesys_section = False
+            with open(self.cards_json_path, 'r', encoding='utf-8') as f:
+                for raw_line in f:
+                    line = raw_line.strip()
+                    if not line:
+                        continue
+                    if line.startswith('#'):
+                        continue
+                    if line.startswith('!'):
+                        in_genesys_section = line == '!Genesys'
+                        continue
+                    if not in_genesys_section or '--' not in line:
+                        continue
+                    left, name = line.split('--', 1)
+                    parts = left.split()
+                    if len(parts) != 3:
+                        continue
+                    code, copies, points = parts
+                    cards_dict[str(code)] = {
+                        'code': int(code),
+                        'copies': int(copies),
+                        'name': name.strip(),
+                        'points': int(points),
+                    }
+            return cards_dict
+
         with open(self.cards_json_path, 'r', encoding='utf-8') as f:
             cards_list = json.load(f)
         

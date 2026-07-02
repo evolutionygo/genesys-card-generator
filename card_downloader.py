@@ -42,9 +42,46 @@ class YugiohCardDownloader:
         self.output_dir.mkdir(exist_ok=True)
         
     def load_cards_json(self, json_path: str) -> List[Dict]:
-        """Load cards from JSON file."""
-        with open(json_path, 'r', encoding='utf-8') as f:
+        """Load cards from JSON or Genesys .lflist.conf file."""
+        source_path = Path(json_path)
+        if source_path.suffix.lower() == '.conf':
+            return self.load_cards_conf(json_path)
+
+        with open(source_path, 'r', encoding='utf-8') as f:
             return json.load(f)
+
+    def load_cards_conf(self, conf_path: str) -> List[Dict]:
+        """Load cards from a Genesys lflist.conf file."""
+        cards: List[Dict] = []
+        in_genesys_section = False
+
+        with open(conf_path, 'r', encoding='utf-8') as f:
+            for raw_line in f:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                if line.startswith('#'):
+                    continue
+                if line.startswith('!'):
+                    in_genesys_section = line == '!Genesys'
+                    continue
+                if not in_genesys_section or '--' not in line:
+                    continue
+
+                left, name = line.split('--', 1)
+                parts = left.split()
+                if len(parts) != 3:
+                    continue
+
+                code, copies, points = parts
+                cards.append({
+                    'code': int(code),
+                    'copies': int(copies),
+                    'name': name.strip(),
+                    'points': int(points),
+                })
+
+        return cards
     
     def get_font(self, size: int):
         """
