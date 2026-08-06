@@ -11,6 +11,7 @@ evolution-genesys-cards/
 selected_images/
 selected_images_processed/
 generated_cards/
+generated_cards_hq/
 *.zip
 
 # OS generated files

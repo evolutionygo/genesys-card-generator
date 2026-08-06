@@ -5,9 +5,19 @@
     "code": 80181649
   },
   {
+    "name": "A Hero Lives",
+    "points": 8,
+    "code": 8949584
+  },
+  {
     "name": "Abyss Dweller",
     "points": 100,
     "code": 21044178
+  },
+  {
+    "name": "Abyss of the Sacred Beasts",
+    "points": 1,
+    "code": 86132414
   },
   {
     "name": "Adamancipator Risen - Dragite",
@@ -20,6 +30,11 @@
     "code": 62320425
   },
   {
+    "name": "Aiwass, Divine Spirit of the Law",
+    "points": 2,
+    "code": 84288367
+  },
+  {
     "name": "Albion the Branded Dragon",
     "points": 5,
     "code": 87746184
@@ -28,6 +43,11 @@
     "name": "Albion the Sanctifire Dragon",
     "points": 33,
     "code": 38811586
+  },
+  {
+    "name": "Aleister the Reminiscent",
+    "points": 4,
+    "code": 57294268
   },
   {
     "name": "Allure of Darkness",
@@ -65,6 +85,11 @@
     "code": 56784842
   },
   {
+    "name": "Angelechy Destrier",
+    "points": 1,
+    "code": 55393975
+  },
+  {
     "name": "Anti-Spell Fragrance",
     "points": 100,
     "code": 58921041
@@ -78,6 +103,11 @@
     "name": "Arcana Force XXI - The World",
     "points": 100,
     "code": 23846921
+  },
+  {
+    "name": "Archfiend's Usurpation",
+    "points": 3,
+    "code": 82997779
   },
   {
     "name": "Archlord Kristya",
@@ -220,6 +250,11 @@
     "code": 92714517
   },
   {
+    "name": "Black Chaos",
+    "points": 20,
+    "code": 98684220
+  },
+  {
     "name": "Black Garden",
     "points": 51,
     "code": 71645242
@@ -231,7 +266,7 @@
   },
   {
     "name": "Blackwing - Boreastorm the Wicked Wind",
-    "points": 20,
+    "points": 15,
     "code": 10602628
   },
   {
@@ -255,13 +290,18 @@
     "code": 95515789
   },
   {
+    "name": "Blitzclique - Breakaway",
+    "points": 2,
+    "code": 64049762
+  },
+  {
     "name": "Block Dragon",
     "points": 33,
     "code": 94689206
   },
   {
     "name": "Bonfire",
-    "points": 33,
+    "points": 15,
     "code": 85106525
   },
   {
@@ -370,6 +410,11 @@
     "code": 67378104
   },
   {
+    "name": "Celtic Mystic",
+    "points": 20,
+    "code": 50073633
+  },
+  {
     "name": "Centur-Ion Auxila",
     "points": 33,
     "code": 71858682
@@ -411,7 +456,7 @@
   },
   {
     "name": "Chaos Space",
-    "points": 40,
+    "points": 13,
     "code": 99266988
   },
   {
@@ -425,9 +470,19 @@
     "code": 67616300
   },
   {
+    "name": "Chronomaly Vimana",
+    "points": 10,
+    "code": 2609443
+  },
+  {
     "name": "Clown Crew Biancaviso",
     "points": 1,
     "code": 82159583
+  },
+  {
+    "name": "Clown Crew Flair",
+    "points": 5,
+    "code": 42759961
   },
   {
     "name": "Clown Crew Malabarisme",
@@ -455,6 +510,16 @@
     "code": 17375316
   },
   {
+    "name": "Constellar Castor",
+    "points": 6,
+    "code": 33302589
+  },
+  {
+    "name": "Constellar Tellarknights",
+    "points": 1,
+    "code": 10125011
+  },
+  {
     "name": "Contact \"C\"",
     "points": 100,
     "code": 87170768
@@ -473,6 +538,11 @@
     "name": "Cosmic Cyclone",
     "points": 1,
     "code": 8267140
+  },
+  {
+    "name": "Crackle Blitzclique",
+    "points": 4,
+    "code": 58916810
   },
   {
     "name": "Creature Swap",
@@ -505,6 +575,16 @@
     "code": 25865565
   },
   {
+    "name": "Crystron Sulfefnir",
+    "points": 2,
+    "code": 3422200
+  },
+  {
+    "name": "Crystron Tristaros",
+    "points": 2,
+    "code": 99471856
+  },
+  {
     "name": "CXyz Gimmick Puppet Fanatix Machinix",
     "points": 100,
     "code": 3685372
@@ -531,7 +611,7 @@
   },
   {
     "name": "D.D. Crow",
-    "points": 1,
+    "points": 2,
     "code": 24508238
   },
   {
@@ -640,6 +720,11 @@
     "code": 52840267
   },
   {
+    "name": "Darktellarknight Batlamyus",
+    "points": 1,
+    "code": 64414267
+  },
+  {
     "name": "Deception of the Sinful Spoils",
     "points": 40,
     "code": 66328392
@@ -651,7 +736,7 @@
   },
   {
     "name": "Deep Sea Aria",
-    "points": 33,
+    "points": 12,
     "code": 72060415
   },
   {
@@ -841,7 +926,7 @@
   },
   {
     "name": "Dragonic Diagram",
-    "points": 10,
+    "points": 5,
     "code": 13035077
   },
   {
@@ -906,12 +991,12 @@
   },
   {
     "name": "El Shaddoll Apkallone",
-    "points": 10,
+    "points": 1,
     "code": 50907446
   },
   {
     "name": "El Shaddoll Winda",
-    "points": 60,
+    "points": 100,
     "code": 94977269
   },
   {
@@ -930,6 +1015,16 @@
     "code": 90050480
   },
   {
+    "name": "Elfnote June Pride",
+    "points": 25,
+    "code": 5559570
+  },
+  {
+    "name": "Elfnote Lucina",
+    "points": 1,
+    "code": 13597785
+  },
+  {
     "name": "Elfnote Power Patron",
     "points": 15,
     "code": 12375297
@@ -940,13 +1035,18 @@
     "code": 56651978
   },
   {
+    "name": "Elfnote Tinia",
+    "points": 3,
+    "code": 59581480
+  },
+  {
     "name": "Elzette, Azamina of the White Forest",
     "points": 22,
     "code": 38648860
   },
   {
     "name": "Emergency Teleport",
-    "points": 35,
+    "points": 25,
     "code": 67723438
   },
   {
@@ -1020,9 +1120,24 @@
     "code": 33158448
   },
   {
+    "name": "Fairy Tail - Matchgiru",
+    "points": 5,
+    "code": 19144622
+  },
+  {
     "name": "Fairy Tail - Snow",
-    "points": 85,
+    "points": 10,
     "code": 55623480
+  },
+  {
+    "name": "Fairy Tail - Wiccat",
+    "points": 10,
+    "code": 27632520
+  },
+  {
+    "name": "Fairy Tail Ball",
+    "points": 10,
+    "code": 56725612
   },
   {
     "name": "Fallen of the White Dragon",
@@ -1046,7 +1161,7 @@
   },
   {
     "name": "Fire Formation - Tenki",
-    "points": 35,
+    "points": 11,
     "code": 57103969
   },
   {
@@ -1056,7 +1171,7 @@
   },
   {
     "name": "Fire King High Avatar Kirin",
-    "points": 7,
+    "points": 5,
     "code": 2526224
   },
   {
@@ -1116,7 +1231,7 @@
   },
   {
     "name": "Fossil Dig",
-    "points": 33,
+    "points": 18,
     "code": 47325505
   },
   {
@@ -1163,6 +1278,11 @@
     "name": "Gameciel, the Sea Turtle Kaiju",
     "points": 3,
     "code": 55063751
+  },
+  {
+    "name": "Garunix Eternity, Hyang of the Fire Kings",
+    "points": 3,
+    "code": 64182380
   },
   {
     "name": "Garura, Wings of Resonant Life",
@@ -1245,13 +1365,18 @@
     "code": 30864377
   },
   {
+    "name": "Glitch Clutch Nullgainer",
+    "points": 10,
+    "code": 32044675
+  },
+  {
     "name": "Glow-Up Bulb",
     "points": 15,
     "code": 67441435
   },
   {
     "name": "Goblin Biker Big Gabonga",
-    "points": 12,
+    "points": 10,
     "code": 34001672
   },
   {
@@ -1261,7 +1386,7 @@
   },
   {
     "name": "Goblin Biker Grand Entrance",
-    "points": 20,
+    "points": 15,
     "code": 90711610
   },
   {
@@ -1293,6 +1418,11 @@
     "name": "Grapha, Dragon Overlord of Dark World",
     "points": 5,
     "code": 39552584
+  },
+  {
+    "name": "Griffoh",
+    "points": 10,
+    "code": 97462632
   },
   {
     "name": "Grisaille Prison",
@@ -1360,6 +1490,11 @@
     "code": 79606837
   },
   {
+    "name": "Hideout in the Sky, Coulomb",
+    "points": 5,
+    "code": 37654623
+  },
+  {
     "name": "Hot Red Dragon Archfiend Abyss",
     "points": 20,
     "code": 9753964
@@ -1373,6 +1508,11 @@
     "name": "Hyper Rank-Up-Magic Utopiforce",
     "points": 1,
     "code": 67517351
+  },
+  {
+    "name": "Hyperinvoked Aeon",
+    "points": 15,
+    "code": 33166263
   },
   {
     "name": "Ice Ryzeal",
@@ -1465,6 +1605,11 @@
     "code": 41855169
   },
   {
+    "name": "Junk Meister",
+    "points": 6,
+    "code": 73218792
+  },
+  {
     "name": "Junk Speeder",
     "points": 100,
     "code": 77075360
@@ -1498,11 +1643,6 @@
     "name": "K9-X \"Werewolf\"",
     "points": 10,
     "code": 90303227
-  },
-  {
-    "name": "K9-ØØ Lupis",
-    "points": 5,
-    "code": 91025875
   },
   {
     "name": "Kaiser Colosseum",
@@ -1661,7 +1801,7 @@
   },
   {
     "name": "Legendary Fire King Ponix",
-    "points": 10,
+    "points": 7,
     "code": 90681088
   },
   {
@@ -1673,6 +1813,11 @@
     "name": "Legendary Six Samurai - Shi En",
     "points": 10,
     "code": 29981921
+  },
+  {
+    "name": "Lev Shaddoll Fusion",
+    "points": 3,
+    "code": 34950192
   },
   {
     "name": "Level Eater",
@@ -1690,6 +1835,11 @@
     "code": 19652159
   },
   {
+    "name": "Light and Darkness Ritual",
+    "points": 5,
+    "code": 33599853
+  },
+  {
     "name": "Light Barrier",
     "points": 1,
     "code": 73206827
@@ -1698,6 +1848,11 @@
     "name": "Light End Sublimation Dragon",
     "points": 1,
     "code": 35614780
+  },
+  {
+    "name": "Lightning Rod Lord",
+    "points": 1,
+    "code": 40672993
   },
   {
     "name": "Lightning Storm",
@@ -1711,7 +1866,7 @@
   },
   {
     "name": "Lonefire Blossom",
-    "points": 33,
+    "points": 10,
     "code": 48686504
   },
   {
@@ -1810,14 +1965,19 @@
     "code": 36890111
   },
   {
+    "name": "Martyr of the Sacred Beasts",
+    "points": 3,
+    "code": 59138498
+  },
+  {
     "name": "Masked HERO Dark Law",
     "points": 70,
     "code": 58481572
   },
   {
-    "name": "Masked HERO Koga",
-    "points": 5,
-    "code": 50608164
+    "name": "Masked HERO Fountain",
+    "points": 6,
+    "code": 66206748
   },
   {
     "name": "Masquerade the Blazing Dragon",
@@ -1858,6 +2018,21 @@
     "name": "Megalith Anastasis",
     "points": 33,
     "code": 29876299
+  },
+  {
+    "name": "Melffy Footsteps",
+    "points": 2,
+    "code": 25687946
+  },
+  {
+    "name": "Melffy Godmommy",
+    "points": 2,
+    "code": 5833929
+  },
+  {
+    "name": "Melffy Staring Contest",
+    "points": 2,
+    "code": 76981308
   },
   {
     "name": "Mementomictlan Tecuhtlica - Creation King",
@@ -1925,6 +2100,11 @@
     "code": 96782886
   },
   {
+    "name": "Mind Shuffle",
+    "points": 40,
+    "code": 24749710
+  },
+  {
     "name": "Miracle Ejector",
     "points": 5,
     "code": 30875635
@@ -1978,6 +2158,11 @@
     "name": "Morphtronic Telefon",
     "points": 55,
     "code": 38082437
+  },
+  {
+    "name": "Mortilux Heruvur",
+    "points": 20,
+    "code": 15415552
   },
   {
     "name": "Moulinglacia the Elemental Lord",
@@ -2051,7 +2236,7 @@
   },
   {
     "name": "Nerva the Power Patron of Creation",
-    "points": 5,
+    "points": 6,
     "code": 53589300
   },
   {
@@ -2171,7 +2356,7 @@
   },
   {
     "name": "Number 86: Heroic Champion - Rhongomyniad",
-    "points": 68,
+    "points": 100,
     "code": 63504681
   },
   {
@@ -2245,11 +2430,6 @@
     "code": 72537897
   },
   {
-    "name": "Officiator of Doom Samuel",
-    "points": 10,
-    "code": 76213610
-  },
-  {
     "name": "Ohime the Manifested Mikanko",
     "points": 33,
     "code": 81260679
@@ -2271,7 +2451,7 @@
   },
   {
     "name": "One for One",
-    "points": 91,
+    "points": 19,
     "code": 2295440
   },
   {
@@ -2281,13 +2461,18 @@
   },
   {
     "name": "Original Sinful Spoils - Snake-Eye",
-    "points": 100,
+    "points": 17,
     "code": 89023486
   },
   {
     "name": "Outer Entity Azathot",
     "points": 100,
     "code": 34945480
+  },
+  {
+    "name": "Over Tuning",
+    "points": 10,
+    "code": 613496
   },
   {
     "name": "P.U.N.K. JAM Dragon Drive",
@@ -2315,6 +2500,11 @@
     "code": 80453041
   },
   {
+    "name": "Phara the Primordial Goddess",
+    "points": 20,
+    "code": 82344137
+  },
+  {
     "name": "Pilgrim Reaper",
     "points": 50,
     "code": 45742626
@@ -2326,7 +2516,7 @@
   },
   {
     "name": "Pot of Desires",
-    "points": 15,
+    "points": 10,
     "code": 35261759
   },
   {
@@ -2343,6 +2533,11 @@
     "name": "Pot of Prosperity",
     "points": 40,
     "code": 84211599
+  },
+  {
+    "name": "Pot of Sloth",
+    "points": 10,
+    "code": 98476659
   },
   {
     "name": "Power Vice Dragon",
@@ -2435,13 +2630,18 @@
     "code": 25550531
   },
   {
+    "name": "Purrely Happy Memory",
+    "points": 2,
+    "code": 82105704
+  },
+  {
     "name": "Purrely Sleepy Memory",
     "points": 10,
     "code": 21347668
   },
   {
     "name": "Purrelyly",
-    "points": 7,
+    "points": 5,
     "code": 79933029
   },
   {
@@ -2456,7 +2656,7 @@
   },
   {
     "name": "Quick Launch",
-    "points": 33,
+    "points": 25,
     "code": 31443476
   },
   {
@@ -2485,6 +2685,11 @@
     "code": 20508881
   },
   {
+    "name": "Ragged Records of Rites",
+    "points": 10,
+    "code": 24461358
+  },
+  {
     "name": "Rahu Dracotail",
     "points": 10,
     "code": 32548318
@@ -2496,7 +2701,7 @@
   },
   {
     "name": "Raigeki",
-    "points": 4,
+    "points": 2,
     "code": 12580477
   },
   {
@@ -2641,7 +2846,7 @@
   },
   {
     "name": "Reinforcement of the Army",
-    "points": 33,
+    "points": 18,
     "code": 32807846
   },
   {
@@ -2700,6 +2905,11 @@
     "code": 1357146
   },
   {
+    "name": "Royal Archfiend",
+    "points": 7,
+    "code": 58769832
+  },
+  {
     "name": "Royal Decree",
     "points": 10,
     "code": 51452091
@@ -2728,6 +2938,11 @@
     "name": "Ryzeal Duo Drive",
     "points": 20,
     "code": 7511613
+  },
+  {
+    "name": "Sacred Beasts Thunderclap",
+    "points": 3,
+    "code": 1259915
   },
   {
     "name": "Sales Ban",
@@ -2785,8 +3000,18 @@
     "code": 73468603
   },
   {
+    "name": "Seventh Tachyon",
+    "points": 11,
+    "code": 7477101
+  },
+  {
+    "name": "Shaddoll Fusion",
+    "points": 3,
+    "code": 44394295
+  },
+  {
     "name": "Shaddoll Schism",
-    "points": 10,
+    "points": 1,
     "code": 21011044
   },
   {
@@ -2975,6 +3200,11 @@
     "code": 23516703
   },
   {
+    "name": "Summoner of the Sacred Beasts",
+    "points": 5,
+    "code": 22734799
+  },
+  {
     "name": "Super Polymerization",
     "points": 13,
     "code": 48130397
@@ -2990,9 +3220,24 @@
     "code": 93039339
   },
   {
+    "name": "Superconductive Plasma Blast",
+    "points": 5,
+    "code": 51869363
+  },
+  {
+    "name": "Superdreadnought Rail Cannon Gustav Max",
+    "points": 10,
+    "code": 56910167
+  },
+  {
     "name": "Supreme King Dragon Starving Venom",
     "points": 1,
     "code": 43387895
+  },
+  {
+    "name": "Surge Blitzclique",
+    "points": 4,
+    "code": 22912101
   },
   {
     "name": "Swap Frog",
@@ -3006,7 +3251,7 @@
   },
   {
     "name": "Swordsoul Emergence",
-    "points": 7,
+    "points": 2,
     "code": 56465981
   },
   {
@@ -3060,6 +3305,21 @@
     "code": 68392533
   },
   {
+    "name": "Tellarknight Constellar Delteros",
+    "points": 10,
+    "code": 32289031
+  },
+  {
+    "name": "Tellarknight Cygnian",
+    "points": 6,
+    "code": 60700283
+  },
+  {
+    "name": "Tellarknight Lyran",
+    "points": 5,
+    "code": 79210531
+  },
+  {
     "name": "Tellarknight Ptolemaeus",
     "points": 100,
     "code": 18326736
@@ -3081,7 +3341,7 @@
   },
   {
     "name": "Terraforming",
-    "points": 33,
+    "points": 20,
     "code": 73628505
   },
   {
@@ -3145,9 +3405,34 @@
     "code": 48716527
   },
   {
+    "name": "The Phantom Knights of Break Sword",
+    "points": 1,
+    "code": 62709239
+  },
+  {
+    "name": "The Phantom Knights of Decayed Cloak",
+    "points": 2,
+    "code": 46072770
+  },
+  {
+    "name": "The Phantom Knights of Doomed Soleret",
+    "points": 3,
+    "code": 83566725
+  },
+  {
+    "name": "The Phantom Knights of Malevolent Scythe",
+    "points": 10,
+    "code": 78449284
+  },
+  {
     "name": "The Phantom Knights' Rank-Up-Magic Launch",
     "points": 1,
     "code": 3298689
+  },
+  {
+    "name": "The Phantom Knights' Rank-Up-Magic Requiem",
+    "points": 1,
+    "code": 62104532
   },
   {
     "name": "The Tyrant Neptune",
@@ -3170,13 +3455,18 @@
     "code": 48739627
   },
   {
+    "name": "Theorealize Past Lull",
+    "points": 5,
+    "code": 36709484
+  },
+  {
     "name": "There Can Be Only One",
     "points": 100,
     "code": 24207889
   },
   {
     "name": "Therion \"King\" Regulus",
-    "points": 20,
+    "points": 33,
     "code": 10604644
   },
   {
@@ -3188,6 +3478,11 @@
     "name": "Thunder King Rai-Oh",
     "points": 20,
     "code": 71564252
+  },
+  {
+    "name": "Thunderclap Monk",
+    "points": 9,
+    "code": 66722103
   },
   {
     "name": "Tidal, Dragon Ruler of Waterfalls",
@@ -3208,11 +3503,6 @@
     "name": "Totem Bird",
     "points": 10,
     "code": 71068247
-  },
-  {
-    "name": "Tour Guide From the Underworld",
-    "points": 3,
-    "code": 10802915
   },
   {
     "name": "Trade-In",
@@ -3340,9 +3630,19 @@
     "code": 70636044
   },
   {
+    "name": "Virakam, the Divine Spirit of Artifice",
+    "points": 2,
+    "code": 10673071
+  },
+  {
     "name": "Virtual World Kyubi - Shenshen",
     "points": 20,
     "code": 92519087
+  },
+  {
+    "name": "Void Unleashing",
+    "points": 10,
+    "code": 61345801
   },
   {
     "name": "Wandering Gryphon Rider",
@@ -3358,6 +3658,11 @@
     "name": "Welcome Labrynth",
     "points": 15,
     "code": 5380979
+  },
+  {
+    "name": "Whisker Blitzclique",
+    "points": 6,
+    "code": 85523502
   },
   {
     "name": "Wind-Up Carrier Zenmaity",
@@ -3378,6 +3683,11 @@
     "name": "Witch of the White Forest",
     "points": 33,
     "code": 4398189
+  },
+  {
+    "name": "Witness of the Ancient",
+    "points": 33,
+    "code": 54577949
   },
   {
     "name": "World Legacy Monstrosity",

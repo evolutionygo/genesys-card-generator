@@ -3,7 +3,7 @@
 Generate Yu-Gi-Oh! Card Images with Genesys Points Overlay
 
 This script generates card images with point overlays and can run one or both phases:
-1. Download cards from cards.json and apply point overlays.
+1. Download cards from a Genesys list source (.json or .lflist.conf) and apply point overlays.
 2. Apply point overlays to pre-downloaded alias images (alias.json + alias_images/).
 
 All generated images are saved to a single output directory with consistent overlay settings.
@@ -70,10 +70,48 @@ class CardRegenerator:
         print(f"💾 Output will be saved to: {self.output_dir.absolute()}")
 
     def _load_cards_data(self) -> Dict:
-        """Load cards.json and create a lookup dictionary by code."""
+        """Load a Genesys source file and create a lookup dictionary by code."""
+        if self.cards_path.suffix.lower() == '.conf':
+            return self._load_cards_conf()
+
         with open(self.cards_path, 'r', encoding='utf-8') as f:
             cards_list = json.load(f)
         return {str(card.get('code')): card for card in cards_list}
+
+    def _load_cards_conf(self) -> Dict:
+        """Load a Genesys lflist.conf file and create a lookup dictionary by code."""
+        cards: Dict[str, Dict] = {}
+        in_genesys_section = False
+
+        with open(self.cards_path, 'r', encoding='utf-8') as f:
+            for raw_line in f:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                if line.startswith('#'):
+                    continue
+                if line.startswith('!'):
+                    in_genesys_section = line == '!Genesys'
+                    continue
+                if not in_genesys_section:
+                    continue
+                if '--' not in line:
+                    continue
+
+                left, name = line.split('--', 1)
+                parts = left.split()
+                if len(parts) != 3:
+                    continue
+
+                code, copies, points = parts
+                cards[str(code)] = {
+                    'code': int(code),
+                    'copies': int(copies),
+                    'name': name.strip(),
+                    'points': int(points),
+                }
+
+        return cards
 
     def _load_alias_data(self) -> Dict:
         """Load alias.json."""
@@ -113,7 +151,7 @@ class CardRegenerator:
 
     def process_primary_cards(self, limit: int = None, font_scale: float = 0.5, high_quality: bool = False):
         """Phase 1: Download and apply overlays for cards in cards.json."""
-        print("\n--- Phase 1: Processing Primary Cards (from cards.json) ---")
+        print("\n--- Phase 1: Processing Primary Cards (from source file) ---")
         
         cards_to_process = list(self.cards_data.items())
         if self.codes_filter:
@@ -245,7 +283,7 @@ def main():
     
     parser.add_argument(
         '-c', '--cards', default='cards.json',
-        help='Path to cards JSON file (default: cards.json)'
+        help='Path to Genesys cards source file (.json or .lflist.conf, default: cards.json)'
     )
     parser.add_argument(
         '-a', '--alias', default='alias.json',
