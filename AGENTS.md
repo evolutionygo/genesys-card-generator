@@ -3,8 +3,9 @@
 ## Project Overview
 
 Python tool that generates Yu-Gi-Oh! card images with Genesys point overlays.
-Downloads card art from YGOPRODeck and composites color-coded point badges onto
-card images. There are only 3 source files.
+Downloads card art (base cards from YGOPRODeck, alternate-art printings from the
+EDOPro picture mirrors) and composites point badges onto card images. There are
+only 4 source files.
 
 **Language:** Python 3.8+
 **Dependencies:** `requests`, `Pillow` (managed via `requirements.txt`)
@@ -15,11 +16,13 @@ card images. There are only 3 source files.
 genesys-card-generator/
   generate.py            # Main entry point - orchestrates card + alias generation
   card_downloader.py     # Core library - image download + overlay compositing
+  sync_alias.py          # Derives alias.json from the EDOPro card database
   apply_alias_overlay.py # Standalone alias overlay processor (imports card_downloader)
   cards.json             # Card data: array of {name, points, code}
-  alias.json             # Maps original card codes -> alias card codes
-  alias_images/          # Pre-downloaded alias card images (.jpg)
-  requirements.txt       # Python deps (requests, Pillow)
+  alias.json             # Maps original card codes -> alias card codes (derived)
+  alias_images/          # Committed alias card images (.jpg) - the curated tier
+  tests/                 # pytest suite (test_*.py) + conftest.py for sys.path
+  requirements.txt       # Python deps (requests, Pillow, pytest)
   setup.sh               # Bootstrap script (creates venv, installs deps)
   generated_cards/       # Output directory (gitignored)
   downloaded_cards/      # Alt output directory (gitignored)
@@ -59,13 +62,46 @@ python3 generate.py --high-quality
 
 # Download-only helper (standalone)
 python3 card_downloader.py --help
+
+# Derive alias.json from the EDOPro card database
+python3 sync_alias.py
+
+# Verify alias.json is in sync without writing (exits 1 on drift - use in CI)
+python3 sync_alias.py --check
+
+# Run the test suite
+python3 -m pytest tests/ -q
 ```
 
 ## Testing
 
-There are **no tests** in this project. No test framework is configured.
-If adding tests, use `pytest` and place test files in a `tests/` directory
-following the `test_*.py` naming convention.
+`pytest` is the test framework (declared in `requirements.txt`). Tests live in
+`tests/` and follow the `test_*.py` naming convention. `tests/conftest.py` puts
+the project root on `sys.path` so test modules can `import generate`,
+`import card_downloader` and `import sync_alias` directly.
+
+```bash
+.venv/bin/python -m pytest tests/ -q          # whole suite
+.venv/bin/python -m pytest tests/test_sync_alias.py -q   # one module
+```
+
+Current modules:
+
+| File                            | Covers                                                        |
+|---------------------------------|---------------------------------------------------------------|
+| `tests/test_sync_alias.py`      | Alias map derivation, local-art preservation, diff, sqlite I/O |
+| `tests/test_card_downloader.py` | Alias art source order, mirror fallback, local cache hit       |
+| `tests/test_generate.py`        | Alias phase: caching fetched art, reporting misses, `--strict`   |
+
+**Tests must never hit the network.** Inject a fake session (an object with a
+`.get()` returning a stub exposing `.content` and `.raise_for_status()`) into
+`YugiohCardDownloader.session`, and use `tmp_path` for anything on disk. Pure
+logic (`build_alias_map`, `merge_preserved_aliases`, `diff_alias_maps`) is kept
+at module level in `sync_alias.py` precisely so it can be tested with plain
+data and no I/O.
+
+New logic is written test-first: add the failing test, watch it fail, then
+implement until green.
 
 ## Linting / Formatting
 

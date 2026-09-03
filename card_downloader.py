@@ -2,8 +2,15 @@
 """
 Yu-Gi-Oh! Card Image Downloader with Points Overlay
 
-This script downloads card images directly from YGOPRODeck using card codes
-from the cards.json file and adds point values as overlay text.
+This script downloads card images using card codes from the cards.json file and
+adds point values as overlay text.
+
+Two different art sources are used, because base cards and alternate-art
+(alias) printings are not available from the same place:
+
+- Base cards come from YGOPRODeck (`BASE_IMAGE_URL`).
+- Alias printings come from the mirrors in `ALIAS_IMAGE_URLS`, with committed
+  art in `alias_images/` taking precedence over any network source.
 """
 
 import json
@@ -12,7 +19,7 @@ import sys
 import time
 import requests
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List, Optional, Tuple
 from PIL import Image, ImageDraw, ImageFont
 import io
 
@@ -21,6 +28,24 @@ class YugiohCardDownloader:
     """Downloads Yu-Gi-Oh! card images directly from YGOPRODeck and adds Genesys point overlays."""
     
     BASE_IMAGE_URL = "https://images.ygoprodeck.com/images/cards"
+
+    # Alias (alternate-art) sources, tried in this exact order.
+    #
+    # 1. Project Ignis is EDOPro's own compiled-in picture source. Because the
+    #    client itself ships these images, using them first guarantees the
+    #    generated badges sit on exactly the art players already see, and the
+    #    art is already served at the 177x254 size this tool targets.
+    # 2. momobako is a last resort only: it serves 300x436 scans with Chinese
+    #    card text, which is visually inconsistent with the rest of the pack,
+    #    but it is the only source that covers the remaining printings.
+    ALIAS_IMAGE_URLS = (
+        "https://pics.projectignis.org:2096/pics",
+        "https://cdn.233.momobako.com/ygopro/pics",
+    )
+
+    # Source label reported by fetch_alias_image for a committed local file.
+    LOCAL_ALIAS_SOURCE = "local"
+
     DEFAULT_OUTPUT_DIR = "downloaded_cards"
     
     def __init__(self, output_dir: str = None, delay: float = 0.1):
@@ -267,6 +292,53 @@ class YugiohCardDownloader:
             # Return original image data if overlay fails
             return image_data
     
+    def fetch_alias_image(
+        self, alias_code: str, local_dir: Optional[Path] = None
+    ) -> Optional[Tuple[bytes, str]]:
+        """
+        Fetch the raw art for an alias (alternate-art) card code.
+
+        Committed art wins: `alias_images/` is the curated tier, so a local file
+        short-circuits the network entirely. Otherwise every URL in
+        `ALIAS_IMAGE_URLS` is tried in order and the first non-empty body wins.
+
+        Individual source failures are caught and logged as warnings so that one
+        dead mirror does not abort the whole run. No exception is raised on a
+        total miss; the caller decides what a miss means.
+
+        Args:
+            alias_code: The alias card code (as a string).
+            local_dir: Optional directory holding committed alias art.
+
+        Returns:
+            A (image_bytes, source) tuple, where source is LOCAL_ALIAS_SOURCE
+            for a committed file or the base URL of the mirror that served it.
+            None when no source could provide the image.
+        """
+        if local_dir is not None:
+            local_path = Path(local_dir) / f"{alias_code}.jpg"
+            if local_path.exists():
+                try:
+                    with open(local_path, 'rb') as f:
+                        return f.read(), self.LOCAL_ALIAS_SOURCE
+                except (OSError, IOError) as e:
+                    print(f"  ⚠️  Could not read local alias image {local_path}: {e}")
+
+        for base_url in self.ALIAS_IMAGE_URLS:
+            url = f"{base_url}/{alias_code}.jpg"
+            try:
+                response = self.session.get(url, timeout=30)
+                response.raise_for_status()
+                if not response.content:
+                    print(f"  ⚠️  Empty response for alias {alias_code} from {base_url}")
+                    continue
+                return response.content, base_url
+            except requests.exceptions.RequestException as e:
+                print(f"  ⚠️  Alias {alias_code} unavailable from {base_url}: {e}")
+                continue
+
+        return None
+
     def download_image(self, url: str, filename: str, points: int) -> bool:
         """
         Download an image from URL, add points overlay, and save to file.

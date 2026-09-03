@@ -4,9 +4,15 @@ Generate Yu-Gi-Oh! Card Images with Genesys Points Overlay
 
 This script generates card images with point overlays and can run one or both phases:
 1. Download cards from a Genesys list source (.json or .lflist.conf) and apply point overlays.
-2. Apply point overlays to pre-downloaded alias images (alias.json + alias_images/).
+2. Apply point overlays to alias images (alias.json + alias_images/), fetching any
+   art that is not committed locally from the alias mirrors.
 
 All generated images are saved to a single output directory with consistent overlay settings.
+
+A missing alias image is reported loudly but does not abort the run: the pack is
+954 independent files, not one atomic archive, so a card whose art no source
+carries degrades on its own instead of withholding every other card. Pass
+--strict to turn a miss into a build failure (for CI).
 """
 
 import json
@@ -30,6 +36,8 @@ class CardRegenerator:
         delay: float,
         generation: str = "all",
         codes: Optional[List[str]] = None,
+        cache_alias_images: bool = True,
+        strict: bool = False,
     ):
         """
         Initialize the regenerator.
@@ -41,6 +49,10 @@ class CardRegenerator:
             output_dir: Directory to save all generated cards
             delay: Delay between downloads
             generation: What to generate: all, cards, alias
+            codes: Optional list of card codes to restrict generation to
+            cache_alias_images: Persist newly fetched alias art into
+                alias_images_dir so the curated store survives mirror rot
+            strict: Exit non-zero when an alias image cannot be produced
         """
         self.cards_path = Path(cards_path)
         self.alias_path = Path(alias_path) if alias_path else None
@@ -49,6 +61,10 @@ class CardRegenerator:
         self.delay = delay
         self.generation = generation
         self.codes_filter = {str(c) for c in (codes or [])} or None
+        self.cache_alias_images = cache_alias_images
+        self.strict = strict
+        # Alias codes no source could serve, kept for the end-of-run report.
+        self.failed_alias_codes: List[str] = []
 
         # Import here so `--help` works even without deps installed
         from card_downloader import YugiohCardDownloader
@@ -149,6 +165,16 @@ class CardRegenerator:
         else:
             print("\n🎉 Full regeneration process completed!")
 
+        # Repeated last on purpose: in a full run the phase 2 report scrolls
+        # away above the completion banner, and a warning nobody reads is how
+        # the original 62 broken cards went unnoticed.
+        if self.failed_alias_codes:
+            print(
+                f"\n⚠️  Shipping without a points badge "
+                f"({len(self.failed_alias_codes)} alias image(s) unavailable): "
+                f"{', '.join(self.failed_alias_codes)}"
+            )
+
     def process_primary_cards(self, limit: int = None, font_scale: float = 0.5, high_quality: bool = False):
         """Phase 1: Download and apply overlays for cards in cards.json."""
         print("\n--- Phase 1: Processing Primary Cards (from source file) ---")
@@ -227,6 +253,11 @@ class CardRegenerator:
         total_aliases = sum(len(v) for _, v in alias_items)
         processed_count = 0
         skipped_count = 0
+        cached_codes: List[str] = []
+        # Alias codes no source could serve, or that blew up while processing.
+        # Collected so one dead mirror does not hide the rest of the damage,
+        # and so run_regeneration can repeat them as the very last output.
+        failed_codes: List[str] = self.failed_alias_codes
 
         for original_code, alias_list in alias_items:
             if original_code not in self.cards_data:
@@ -245,35 +276,81 @@ class CardRegenerator:
                 image_path = self.alias_images_dir / f"{alias_code_str}.jpg"
                 output_path = self.output_dir / f"{alias_code_str}.jpg"
 
-                if not image_path.exists():
-                    print(f"  ⚠️  Image not found for alias {alias_code_str}, skipping.")
-                    skipped_count += 1
-                    continue
-                
                 try:
-                    # 1. Read the local image file
-                    with open(image_path, 'rb') as f:
-                        image_data = f.read()
+                    # 1. Resolve the art: committed file first, then mirrors.
+                    fetched = self.downloader.fetch_alias_image(
+                        alias_code_str, local_dir=self.alias_images_dir
+                    )
+                    if fetched is None:
+                        print(f"  ❌ No source could serve alias {alias_code_str}")
+                        failed_codes.append(alias_code_str)
+                        continue
 
-                    # 2. Apply overlay with consistent settings
+                    image_data, source = fetched
+                    from_network = source != self.downloader.LOCAL_ALIAS_SOURCE
+
+                    # 2. Persist freshly fetched art so the curated store
+                    # survives mirror rot: most of the images committed today
+                    # are already gone from the fallback mirror.
+                    if from_network and self.cache_alias_images and self.alias_images_dir:
+                        try:
+                            self.alias_images_dir.mkdir(parents=True, exist_ok=True)
+                            with open(image_path, 'wb') as f:
+                                f.write(image_data)
+                            cached_codes.append(alias_code_str)
+                        except (OSError, IOError) as e:
+                            print(f"  ⚠️  Could not cache alias {alias_code_str}: {e}")
+
+                    # 3. Apply overlay with consistent settings
                     modified_image_data = self.downloader.add_points_overlay(
                         image_data, points, font_scale=font_scale, high_quality=high_quality
                     )
-                    
-                    # 3. Save to the unified output directory
+
+                    # 4. Save to the unified output directory
                     with open(output_path, 'wb') as f:
                         f.write(modified_image_data)
 
-                    print(f"  ✅ Generated: {alias_code_str}.jpg")
+                    print(f"  ✅ Generated: {alias_code_str}.jpg (source: {source})")
                     processed_count += 1
+
+                    if from_network:
+                        time.sleep(self.delay)
 
                 except Exception as e:
                     print(f"  ❌ FAILED to process alias {alias_code_str}: {e}")
+                    failed_codes.append(alias_code_str)
 
         print(f"\n--- Phase 2 Summary ---")
-        print(f"✅ Successfully generated: {processed_count} alias cards")
+        print(f"✅ Successfully generated: {processed_count}/{total_aliases} alias cards")
         if skipped_count > 0:
-            print(f"⚠️  Skipped: {skipped_count} alias cards (image not found)")
+            print(f"⚠️  Skipped: {skipped_count} alias cards (original card not in cards.json)")
+
+        if cached_codes:
+            print(f"\n💾 Cached {len(cached_codes)} newly downloaded alias images in "
+                  f"{self.alias_images_dir}:")
+            for alias_code_str in cached_codes:
+                print(f"  💾 {alias_code_str}.jpg")
+            print("ℹ️  Commit these files so the pack no longer depends on the mirrors.")
+
+        # A miss is loud but not fatal. The output is 954 independent files
+        # read per-card by the client, so a card whose art no source carries
+        # degrades on its own (EDOPro falls back to the unbadged art it
+        # downloads itself) while every other card ships fine. Aborting would
+        # withhold 953 good images over one rarely-played card.
+        #
+        # It must still be impossible to overlook, though: silent skipping is
+        # exactly why 62 alias cards shipped with no points badge for months.
+        # Hence the explicit list here, the repeat at the very end of the run,
+        # and --strict for a pipeline that wants the non-zero exit.
+        if failed_codes:
+            print(f"\n⚠️  {len(failed_codes)} alias image(s) could not be produced:")
+            for alias_code_str in failed_codes:
+                print(f"  ⚠️  {alias_code_str}")
+            print("ℹ️  These cards ship without a points badge. Add the art to "
+                  "alias_images/ and commit it, or remove the entry from alias.json.")
+            if self.strict:
+                print("❌ Build failed: --strict was requested.")
+                sys.exit(1)
 
 
 def main():
@@ -319,6 +396,20 @@ def main():
         help="What to generate: all, cards, alias (default: all)"
     )
     parser.add_argument(
+        '--strict',
+        action='store_true',
+        help='Exit non-zero when an alias image cannot be produced from any '
+             'source (default: the miss is reported and the run still '
+             'succeeds, since every other card is unaffected)'
+    )
+    parser.add_argument(
+        '--no-cache-alias-images',
+        action='store_true',
+        help='Do not persist newly downloaded alias art into the alias images '
+             'directory (default: art is cached so the curated store survives '
+             'mirror rot)'
+    )
+    parser.add_argument(
         '--code',
         action='append',
         default=None,
@@ -361,6 +452,8 @@ def main():
         delay=args.delay,
         generation=args.generate,
         codes=codes,
+        cache_alias_images=not args.no_cache_alias_images,
+        strict=args.strict,
     )
     
     regenerator.run_regeneration(limit=args.limit, high_quality=args.high_quality)
