@@ -9,7 +9,7 @@ Two different art sources are used, because base cards and alternate-art
 (alias) printings are not available from the same place:
 
 - Base cards come from YGOPRODeck (`BASE_IMAGE_URL`).
-- Alias printings come from the mirrors in `ALIAS_IMAGE_URLS`, with committed
+- Alias printings come from the sources in `ALIAS_IMAGE_URLS`, with committed
   art in `alias_images/` taking precedence over any network source.
 """
 
@@ -31,16 +31,14 @@ class YugiohCardDownloader:
 
     # Alias (alternate-art) sources, tried in this exact order.
     #
-    # 1. Project Ignis is EDOPro's own compiled-in picture source. Because the
-    #    client itself ships these images, using them first guarantees the
-    #    generated badges sit on exactly the art players already see, and the
-    #    art is already served at the 177x254 size this tool targets.
-    # 2. momobako is a last resort only: it serves 300x436 scans with Chinese
-    #    card text, which is visually inconsistent with the rest of the pack,
-    #    but it is the only source that covers the remaining printings.
+    # Project Ignis is EDOPro's compiled-in picture source, so the badges sit
+    # on exactly the art players already see, at the 177x254 size this tool
+    # targets. It serves every alias EDOPro declares, and sync_alias.py derives
+    # alias.json from EDOPro's own databases, so it is the only source needed.
+    # The momobako mirror used to be a fallback for MyCard-only codes; those
+    # are no longer generated. The lookup stays a generic ordered chain.
     ALIAS_IMAGE_URLS = (
         "https://pics.projectignis.org:2096/pics",
-        "https://cdn.233.momobako.com/ygopro/pics",
     )
 
     # Source label reported by fetch_alias_image for a committed local file.

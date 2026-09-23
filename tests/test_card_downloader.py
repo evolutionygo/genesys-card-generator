@@ -2,7 +2,7 @@
 """Tests for the alias art source fallback chain in card_downloader.py."""
 
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import pytest
 import requests
@@ -38,6 +38,19 @@ class FakeSession:
         return StubResponse(b'', 404)
 
 
+PRIMARY_SOURCE = 'https://primary.example/pics'
+SECONDARY_SOURCE = 'https://secondary.example/pics'
+
+
+@pytest.fixture
+def two_sources(monkeypatch: pytest.MonkeyPatch) -> Tuple[str, str]:
+    """Patch ALIAS_IMAGE_URLS with two sources to exercise fallback ordering."""
+    monkeypatch.setattr(
+        YugiohCardDownloader, 'ALIAS_IMAGE_URLS', (PRIMARY_SOURCE, SECONDARY_SOURCE)
+    )
+    return PRIMARY_SOURCE, SECONDARY_SOURCE
+
+
 @pytest.fixture
 def downloader(tmp_path: Path) -> YugiohCardDownloader:
     """A downloader wired to a temp output dir and an offline fake session."""
@@ -49,10 +62,9 @@ def downloader(tmp_path: Path) -> YugiohCardDownloader:
 class TestAliasImageUrls:
     """Covers the declared source order."""
 
-    def test_ignis_is_tried_before_momobako(self):
+    def test_project_ignis_is_the_only_source(self):
         assert YugiohCardDownloader.ALIAS_IMAGE_URLS == (
             'https://pics.projectignis.org:2096/pics',
-            'https://cdn.233.momobako.com/ygopro/pics',
         )
 
     def test_base_image_url_is_unchanged(self):
@@ -86,23 +98,25 @@ class TestFetchAliasImage:
         assert result == (b'ignis-art', ignis)
         assert downloader.session.requested_urls == [f'{ignis}/1002.jpg']
 
-    def test_falls_through_to_the_second_mirror_on_a_miss(
-        self, downloader: YugiohCardDownloader
+    def test_falls_through_to_the_second_source_on_a_miss(
+        self, downloader: YugiohCardDownloader, two_sources: Tuple[str, str]
     ):
-        ignis, momobako = YugiohCardDownloader.ALIAS_IMAGE_URLS
+        primary, secondary = two_sources
         downloader.session = FakeSession(
-            {f'{momobako}/1002.jpg': StubResponse(b'momobako-art')}
+            {f'{secondary}/1002.jpg': StubResponse(b'secondary-art')}
         )
 
         result = downloader.fetch_alias_image('1002')
 
-        assert result == (b'momobako-art', momobako)
+        assert result == (b'secondary-art', secondary)
         assert downloader.session.requested_urls == [
-            f'{ignis}/1002.jpg',
-            f'{momobako}/1002.jpg',
+            f'{primary}/1002.jpg',
+            f'{secondary}/1002.jpg',
         ]
 
-    def test_returns_none_when_every_source_misses(self, downloader: YugiohCardDownloader):
+    def test_returns_none_when_every_source_misses(
+        self, downloader: YugiohCardDownloader, two_sources: Tuple[str, str]
+    ):
         assert downloader.fetch_alias_image('1002') is None
         assert len(downloader.session.requested_urls) == 2
 
@@ -118,33 +132,43 @@ class TestFetchAliasImage:
 
         assert result == (b'ignis-art', ignis)
 
-    def test_empty_body_is_treated_as_a_miss(self, downloader: YugiohCardDownloader):
-        ignis, momobako = YugiohCardDownloader.ALIAS_IMAGE_URLS
+    def test_empty_body_is_treated_as_a_miss(
+        self, downloader: YugiohCardDownloader, two_sources: Tuple[str, str]
+    ):
+        primary, secondary = two_sources
         downloader.session = FakeSession(
             {
-                f'{ignis}/1002.jpg': StubResponse(b''),
-                f'{momobako}/1002.jpg': StubResponse(b'momobako-art'),
+                f'{primary}/1002.jpg': StubResponse(b''),
+                f'{secondary}/1002.jpg': StubResponse(b'secondary-art'),
             }
         )
 
         result = downloader.fetch_alias_image('1002')
 
-        assert result == (b'momobako-art', momobako)
+        assert result == (b'secondary-art', secondary)
 
-    def test_a_raising_mirror_does_not_abort_the_chain(
-        self, downloader: YugiohCardDownloader
+    def test_a_raising_source_does_not_abort_the_chain(
+        self, downloader: YugiohCardDownloader, two_sources: Tuple[str, str]
     ):
-        ignis, momobako = YugiohCardDownloader.ALIAS_IMAGE_URLS
+        primary, secondary = two_sources
 
         class ExplodingSession(FakeSession):
             def get(self, url: str, timeout: int = 0) -> StubResponse:
                 self.requested_urls.append(url)
-                if url.startswith(ignis):
-                    raise requests.exceptions.ConnectionError('dead mirror')
-                return StubResponse(b'momobako-art')
+                if url.startswith(primary):
+                    raise requests.exceptions.ConnectionError('dead source')
+                return StubResponse(b'secondary-art')
 
         downloader.session = ExplodingSession()
 
         result = downloader.fetch_alias_image('1002')
 
-        assert result == (b'momobako-art', momobako)
+        assert result == (b'secondary-art', secondary)
+
+    def test_single_source_miss_returns_none_after_one_request(
+        self, downloader: YugiohCardDownloader
+    ):
+        assert downloader.fetch_alias_image('1002') is None
+        assert downloader.session.requested_urls == [
+            f'{YugiohCardDownloader.ALIAS_IMAGE_URLS[0]}/1002.jpg'
+        ]
