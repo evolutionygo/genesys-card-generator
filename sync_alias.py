@@ -1,34 +1,52 @@
 #!/usr/bin/env python3
 """
-Derive alias.json from the EDOPro card database.
+Derive alias.json from EDOPro's own card databases.
 
 alias.json maps a Genesys base card code to the alternate-art printings that
 must receive the same points badge. It used to be hand-maintained, which meant
 new alternate-art printings silently shipped with no badge at all.
 
-The authoritative source is the `datas.alias` column of `base.en.cdb`: a row
-`(id, alias)` means `id` is an alternate-art printing of the base card `alias`.
-Only `base.en.cdb` is read - the `pre-errata.*.cdb` overlays hold Edison-format
-custom codes that never appear in Genesys.
+The images target EDOPro only, so the rule is: an alternate art is any code
+that EDOPro's card databases declare with `datas.alias` pointing to a Genesys
+base card. A row `(id, alias)` means `id` is an alternate-art printing of the
+base card `alias`.
 
-The database is not a superset of the current file: alias.json also carries OCG
-and prerelease codes that came from other databases and that `base.en.cdb` does
-not declare. Those entries are still backed by real, working art in
-`alias_images/`, so they are preserved instead of deleted (see
-`merge_preserved_aliases`).
+EDOPro's databases come from two Project Ignis repositories:
+
+- https://github.com/ProjectIgnis/BabelCDB     (full databases)
+- https://github.com/ProjectIgnis/DeltaBagooska (updates)
+
+Every `*.cdb` in each `--cdb-dir` is read, except files whose name contains
+`rush`, `skills` or `goat` (case-insensitive): Rush Duel, skill cards and the
+GOAT format can never be in a Genesys deck. Prerelease file names change over
+time, so databases are discovered by globbing, never listed by hand.
+
+Overlay order: directories are read in the order given, files within a
+directory in sorted name order, and a later row for the same `id` overwrites
+an earlier one. Pass BabelCDB first and DeltaBagooska second so updates win.
+
+The derivation is authoritative: an id EDOPro does not declare is removed from
+alias.json, and its committed image in `alias_images/` is deleted with it.
+
+The Genesys list itself is read through `genesys_source`, so the upstream
+`genesys.lflist.conf` can be passed to `--cards` directly instead of going
+through the cards.json copy.
 
 Usage:
-    python3 sync_alias.py           # rewrite alias.json
-    python3 sync_alias.py --check   # report drift and exit 1 (for CI)
+    python3 sync_alias.py --cdb-dir BabelCDB --cdb-dir DeltaBagooska
+    python3 sync_alias.py --cdb-dir BabelCDB --cdb-dir DeltaBagooska --check
 """
 
 import json
 import sqlite3
 import sys
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Set, Tuple
 
-DEFAULT_CDB_PATH = '/home/diango/code/evolution/evolution-assets/cdb/base.en.cdb'
+import genesys_source
+
+# Database file names containing any of these belong to another game or format.
+EXCLUDED_DATABASE_MARKERS = ('rush', 'skills', 'goat')
 
 
 def build_alias_map(
@@ -39,8 +57,9 @@ def build_alias_map(
 
     Args:
         rows: Iterable of (id, alias) integer pairs from `datas`, where `id` is
-            an alternate-art printing and `alias` is the base card.
-        codes: The Genesys base card codes from cards.json.
+            an alternate-art printing and `alias` is the base card. Rows with
+            alias 0 (base cards) never match a Genesys code and are ignored.
+        codes: The Genesys base card codes from the Genesys list.
 
     Returns:
         A dict of base card code (as a string) to its alternate-art codes,
@@ -64,47 +83,6 @@ def build_alias_map(
         str(base_code): sorted(grouped[base_code])
         for base_code in sorted(grouped)
     }
-
-
-def merge_preserved_aliases(
-    derived: Dict[str, List[int]],
-    current: Dict[str, Iterable],
-    preserved_ids: Iterable[int],
-) -> Dict[str, List[int]]:
-    """
-    Union the database-derived map with existing entries backed by local art.
-
-    This is the most important guarantee in this module. `base.en.cdb` does NOT
-    declare every alias id currently in alias.json: OCG and prerelease codes
-    (511002075, 160019064, 97268404, ...) came from other databases. A naive
-    rewrite would delete them and lose art that works today, re-introducing the
-    exact bug this script exists to fix.
-
-    So an existing entry is dropped only when it has no file in `alias_images/`.
-    Whether an id has local art is decided by the caller and passed in, so this
-    function stays pure and testable.
-
-    Args:
-        derived: Output of `build_alias_map`.
-        current: The alias map currently on disk (values may be ints or strings).
-        preserved_ids: Alias ids that have a committed image in `alias_images/`.
-
-    Returns:
-        The merged map, keys inserted in ascending numeric order and values
-        sorted ascending.
-    """
-    protected = {int(alias_id) for alias_id in preserved_ids}
-    merged: Dict[int, Set[int]] = {
-        int(base_code): {int(alias_id) for alias_id in alias_ids}
-        for base_code, alias_ids in derived.items()
-    }
-
-    for base_code, alias_ids in current.items():
-        kept = {int(alias_id) for alias_id in alias_ids if int(alias_id) in protected}
-        if kept:
-            merged.setdefault(int(base_code), set()).update(kept)
-
-    return {str(base_code): sorted(merged[base_code]) for base_code in sorted(merged)}
 
 
 def diff_alias_maps(
@@ -160,63 +138,190 @@ def diff_alias_maps(
     }
 
 
-def read_alias_rows(cdb_path) -> List[Tuple[int, int]]:
+def select_edopro_databases(file_names: Iterable[str]) -> List[str]:
     """
-    Read the alternate-art rows from an EDOPro card database.
+    Select the EDOPro databases that can hold Genesys alternate arts.
 
     Args:
-        cdb_path: Path to a `.cdb` SQLite database (use `base.en.cdb`).
+        file_names: File names found in a database directory.
 
     Returns:
-        A list of (id, alias) integer pairs where alias is non-zero.
+        The `*.cdb` names whose name does not contain `rush`, `skills` or
+        `goat` (case-insensitive), sorted ascending.
+    """
+    selected = []
+    for name in file_names:
+        lowered = name.lower()
+        if not lowered.endswith('.cdb'):
+            continue
+        if any(marker in lowered for marker in EXCLUDED_DATABASE_MARKERS):
+            continue
+        selected.append(name)
+
+    return sorted(selected)
+
+
+def read_alias_rows(cdb_path) -> List[Tuple[int, int]]:
+    """
+    Read every (id, alias) row from an EDOPro card database.
+
+    Base cards are returned too, with alias 0, so an overlay can clear an
+    alias declared by an earlier database.
+
+    Args:
+        cdb_path: Path to a `.cdb` SQLite database.
+
+    Returns:
+        A list of (id, alias) integer pairs.
     """
     connection = sqlite3.connect(str(Path(cdb_path)))
     try:
-        cursor = connection.execute('SELECT id, alias FROM datas WHERE alias != 0')
-        return [(int(alias_id), int(base_code)) for alias_id, base_code in cursor]
+        cursor = connection.execute('SELECT id, alias FROM datas')
+        return [(int(card_id), int(alias or 0)) for card_id, alias in cursor]
     finally:
         connection.close()
 
 
-def load_card_codes(cards_path) -> Set[int]:
+def read_alias_rows_from_dirs(cdb_dirs: Iterable) -> List[Tuple[int, int]]:
     """
-    Load the Genesys base card codes from cards.json.
+    Read the overlay of every EDOPro database across directories.
+
+    Directories are read in the order given and files within a directory in
+    sorted name order (see `select_edopro_databases`); a later row for the same
+    `id` overwrites an earlier one.
 
     Args:
-        cards_path: Path to cards.json.
+        cdb_dirs: Database directories, e.g. BabelCDB then DeltaBagooska.
+
+    Returns:
+        The final (id, alias) pair per id, sorted by id, including ids whose
+        final alias is 0.
+    """
+    final_alias: Dict[int, int] = {}
+
+    for cdb_dir in cdb_dirs:
+        directory = Path(cdb_dir)
+        names = [path.name for path in directory.iterdir() if path.is_file()]
+        for name in select_edopro_databases(names):
+            for card_id, alias in read_alias_rows(directory / name):
+                final_alias[card_id] = alias
+
+    return sorted(final_alias.items())
+
+
+def find_orphan_alias_images(images_dir, alias_map: Dict[str, Iterable]) -> List[Path]:
+    """
+    Find committed alias images whose code is no longer in the alias map.
+
+    A code is known when it is either a family key or one of its aliases.
+
+    Only `{code}.jpg` files with a numeric stem are considered. Nothing is
+    deleted here; the caller decides what to do with the result.
+
+    Args:
+        images_dir: Directory holding committed alias art.
+        alias_map: The alias map that is (or will be) on disk.
+
+    Returns:
+        The orphan image paths, sorted by numeric code.
+    """
+    directory = Path(images_dir)
+    if not directory.is_dir():
+        return []
+
+    known_ids = {
+        int(alias_id) for alias_ids in alias_map.values() for alias_id in alias_ids
+    }
+    # Keys count too: generate.py caches a family's base art here when the
+    # Genesys list names that family by an alternate passcode.
+    known_ids.update(int(base_code) for base_code in alias_map)
+
+    orphans: List[Tuple[int, Path]] = []
+    for image_path in directory.glob('*.jpg'):
+        if not image_path.stem.isdigit():
+            continue
+        code = int(image_path.stem)
+        if code not in known_ids:
+            orphans.append((code, image_path))
+
+    return [path for _, path in sorted(orphans)]
+
+
+def normalize_listed_codes(
+    codes: Iterable[int], rows: Iterable[Tuple[int, int]]
+) -> Set[int]:
+    """
+    Add the base card of every listed code that is itself an alternate art.
+
+    Konami publishes the Genesys list by card name, and evolution-assets
+    resolves those names to passcodes through the ygoprodeck API, which may
+    return ANY printing's passcode. On 2026-09-23 Monster Reborn moved from
+    83764718 (the base card) to 83764719 (one of its alternate arts). Without
+    this normalization the whole family disappears: 83764718 is no longer in
+    the listed set, so no alias group is derived for it at all.
+
+    The listed code is always kept - it still needs its own image generated.
+    The function is pure and idempotent, and a code absent from `rows` simply
+    passes through.
+
+    Args:
+        codes: The card codes read from the Genesys source.
+        rows: Iterable of (id, alias) integer pairs from `datas`, where `id` is
+            an alternate-art printing and `alias` is its base card (0 for a
+            base card, which is ignored).
+
+    Returns:
+        A set with every input code plus the base card of any input code that
+        appears as an alternate-art printing.
+    """
+    listed = {int(code) for code in codes}
+    normalized = set(listed)
+
+    for alias_id, base_code in rows:
+        # Alias 0 marks a base card, which has no family to fold onto.
+        if int(base_code) != 0 and int(alias_id) in listed:
+            normalized.add(int(base_code))
+
+    return normalized
+
+
+def load_card_codes(cards_path) -> Set[int]:
+    """
+    Load the Genesys base card codes from the Genesys list.
+
+    Args:
+        cards_path: Path to the Genesys source, either the upstream
+            `genesys.lflist.conf` or the legacy local `cards.json`.
 
     Returns:
         A set of integer card codes.
     """
-    with open(Path(cards_path), 'r', encoding='utf-8') as f:
-        cards = json.load(f)
-
-    return {int(card['code']) for card in cards if card.get('code') is not None}
+    return {entry['code'] for entry in genesys_source.load_card_entries(cards_path)}
 
 
 class AliasSynchronizer:
-    """Keeps alias.json in sync with the EDOPro card database."""
+    """Keeps alias.json and alias_images/ in sync with EDOPro's databases."""
 
     def __init__(
         self,
-        cdb_path: str,
+        cdb_dirs: List,
         cards_path: str,
         alias_path: str,
-        alias_images_dir: Optional[str],
+        alias_images_dir: str,
     ):
         """
         Initialize the synchronizer.
 
         Args:
-            cdb_path: Path to base.en.cdb
-            cards_path: Path to cards.json
+            cdb_dirs: EDOPro database directories, in overlay order
+            cards_path: Path to the Genesys list (cards.json or lflist.conf)
             alias_path: Path to alias.json
             alias_images_dir: Directory holding committed alias art
         """
-        self.cdb_path = Path(cdb_path)
+        self.cdb_dirs = [Path(cdb_dir) for cdb_dir in cdb_dirs]
         self.cards_path = Path(cards_path)
         self.alias_path = Path(alias_path)
-        self.alias_images_dir = Path(alias_images_dir) if alias_images_dir else None
+        self.alias_images_dir = Path(alias_images_dir)
 
     def load_current_alias_map(self) -> Dict[str, List]:
         """
@@ -230,26 +335,6 @@ class AliasSynchronizer:
 
         with open(self.alias_path, 'r', encoding='utf-8') as f:
             return json.load(f)
-
-    def local_alias_ids(self) -> Set[int]:
-        """
-        Collect the alias ids that have committed art on disk.
-
-        Returns:
-            A set of integer alias ids found as `{id}.jpg` in alias_images/.
-        """
-        if not self.alias_images_dir or not self.alias_images_dir.is_dir():
-            return set()
-
-        ids: Set[int] = set()
-        for image_path in self.alias_images_dir.glob('*.jpg'):
-            try:
-                ids.add(int(image_path.stem))
-            except ValueError:
-                print(f"⚠️  Ignoring non-numeric alias image name: {image_path.name}")
-                continue
-
-        return ids
 
     def write_alias_map(self, alias_map: Dict[str, List[int]]) -> None:
         """
@@ -266,46 +351,71 @@ class AliasSynchronizer:
         """
         Derive the alias map and either report or write it.
 
+        When writing, committed alias images whose code is not in the derived
+        map are deleted. In check mode they are reported and count as drift.
+
         Args:
-            check_only: If True, report the diff without writing anything.
+            check_only: If True, report the drift without writing or deleting.
 
         Returns:
-            The diff dict produced by `diff_alias_maps`.
+            The diff dict produced by `diff_alias_maps`, plus `orphan_images`
+            (the orphan image paths); `in_sync` is False when either alias.json
+            drifted or orphan images exist.
         """
-        codes = load_card_codes(self.cards_path)
-        rows = read_alias_rows(self.cdb_path)
+        listed_codes = load_card_codes(self.cards_path)
+        rows = read_alias_rows_from_dirs(self.cdb_dirs)
         current = self.load_current_alias_map()
-        preserved_ids = self.local_alias_ids()
+
+        # A listed code may be an alternate art rather than the base card, so
+        # fold each one back onto its family before grouping.
+        codes = normalize_listed_codes(listed_codes, rows)
 
         derived = build_alias_map(rows, codes)
-        merged = merge_preserved_aliases(derived, current, preserved_ids)
-        diff = diff_alias_maps(current, merged)
+        diff = diff_alias_maps(current, derived)
+        orphans = find_orphan_alias_images(self.alias_images_dir, derived)
+        alias_json_in_sync = diff['in_sync']
+        diff['orphan_images'] = orphans
+        diff['in_sync'] = alias_json_in_sync and not orphans
 
+        alias_row_count = sum(1 for _, alias in rows if alias != 0)
         print(f"📊 Base cards in {self.cards_path.name}: {len(codes)}")
-        print(f"📊 Alias rows declared by {self.cdb_path.name}: {len(rows)}")
-        print(f"📊 Alias ids with committed art: {len(preserved_ids)}")
+        print(
+            f"📊 Alias rows declared by {len(self.cdb_dirs)} database "
+            f"directories: {alias_row_count}"
+        )
         print(
             f"📊 Alias ids: {sum(len(v) for v in current.values())} on disk -> "
-            f"{sum(len(v) for v in merged.values())} derived"
+            f"{sum(len(v) for v in derived.values())} derived"
         )
 
         self._print_diff(diff)
+        self._print_orphans(orphans, check_only)
 
         if check_only:
             if diff['in_sync']:
-                print("✅ alias.json is in sync with the card database.")
+                print("✅ alias.json and alias_images/ are in sync with EDOPro's databases.")
             else:
-                print("❌ alias.json is out of sync with the card database.")
-                print("   Run: python3 sync_alias.py")
+                print("❌ alias.json or alias_images/ is out of sync with EDOPro's databases.")
+                print("   Run: python3 sync_alias.py --cdb-dir <BabelCDB> --cdb-dir <DeltaBagooska>")
             return diff
 
-        if diff['in_sync']:
+        if alias_json_in_sync:
             print("✅ alias.json is already in sync, nothing to write.")
-            return diff
+        else:
+            self.write_alias_map(derived)
+            print(f"💾 Wrote {len(derived)} base cards to {self.alias_path}")
 
-        self.write_alias_map(merged)
-        print(f"💾 Wrote {len(merged)} base cards to {self.alias_path}")
-        print("ℹ️  Remember to commit alias.json and any new alias_images/ files.")
+        for image_path in orphans:
+            try:
+                image_path.unlink()
+            except (OSError, IOError) as e:
+                print(f"  ⚠️  Could not delete {image_path}: {e}")
+
+        if orphans:
+            print(f"🧹 Deleted {len(orphans)} orphan images from {self.alias_images_dir}")
+
+        if not diff['in_sync']:
+            print("ℹ️  Remember to commit alias.json and alias_images/.")
 
         return diff
 
@@ -328,21 +438,37 @@ class AliasSynchronizer:
         for base_code, alias_ids in diff['removed'].items():
             print(f"  ➖ {base_code}: {', '.join(str(i) for i in alias_ids)}")
 
+    def _print_orphans(self, orphans: List[Path], check_only: bool) -> None:
+        """
+        Print the alias images that are no longer in the alias map.
+
+        Args:
+            orphans: Output of `find_orphan_alias_images`.
+            check_only: Whether the images will be kept (check) or deleted.
+        """
+        action = 'would be deleted' if check_only else 'to delete'
+        print(f"📊 Orphan alias images ({action}): {len(orphans)}")
+        for image_path in orphans:
+            print(f"  🧹 {image_path.name}")
+
 
 def main():
     """Main entry point."""
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='Derive alias.json from the EDOPro card database (base.en.cdb).'
+        description="Derive alias.json from EDOPro's card databases "
+                    '(ProjectIgnis/BabelCDB and ProjectIgnis/DeltaBagooska).'
     )
     parser.add_argument(
-        '--cdb', default=DEFAULT_CDB_PATH,
-        help=f'Path to the EDOPro card database (default: {DEFAULT_CDB_PATH})'
+        '-d', '--cdb-dir', action='append', required=True, dest='cdb_dirs',
+        help='Directory of EDOPro .cdb files; repeat it, later directories win '
+             '(e.g. --cdb-dir BabelCDB --cdb-dir DeltaBagooska)'
     )
     parser.add_argument(
         '-c', '--cards', default='cards.json',
-        help='Path to the Genesys cards JSON file (default: cards.json)'
+        help='Path to the Genesys card list, either the upstream '
+             'genesys.lflist.conf or cards.json (default: cards.json)'
     )
     parser.add_argument(
         '-a', '--alias', default='alias.json',
@@ -350,25 +476,29 @@ def main():
     )
     parser.add_argument(
         '-i', '--alias-images', default='alias_images',
-        help='Directory with committed alias images, whose entries are never '
-             'dropped (default: alias_images)'
+        help='Directory with committed alias images; images whose code is not '
+             'in the derived alias.json are deleted (default: alias_images)'
     )
     parser.add_argument(
         '--check',
         action='store_true',
-        help='Report the diff and exit 1 if alias.json is out of sync, without '
-             'writing anything (for CI)'
+        help='Report the drift and exit 1 if alias.json or alias_images/ is out '
+             'of sync, without writing or deleting anything (for CI)'
     )
 
     args = parser.parse_args()
 
-    for path in (args.cdb, args.cards):
-        if not Path(path).exists():
-            print(f"❌ Error: Required file not found: {path}")
+    if not Path(args.cards).exists():
+        print(f"❌ Error: Required file not found: {args.cards}")
+        sys.exit(1)
+
+    for cdb_dir in args.cdb_dirs:
+        if not Path(cdb_dir).is_dir():
+            print(f"❌ Error: Database directory not found: {cdb_dir}")
             sys.exit(1)
 
     synchronizer = AliasSynchronizer(
-        cdb_path=args.cdb,
+        cdb_dirs=args.cdb_dirs,
         cards_path=args.cards,
         alias_path=args.alias,
         alias_images_dir=args.alias_images,

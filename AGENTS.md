@@ -3,9 +3,10 @@
 ## Project Overview
 
 Python tool that generates Yu-Gi-Oh! card images with Genesys point overlays.
-Downloads card art (base cards from YGOPRODeck, alternate-art printings from the
-EDOPro picture mirrors) and composites point badges onto card images. There are
-only 4 source files.
+Downloads card art (base cards from YGOPRODeck, alternate-art printings from
+Project Ignis, EDOPro's picture source) and composites point badges onto card
+images. The Python sources are the seven top-level `*.py` files listed under
+Project Structure.
 
 **Language:** Python 3.8+
 **Dependencies:** `requests`, `Pillow` (managed via `requirements.txt`)
@@ -16,14 +17,18 @@ only 4 source files.
 genesys-card-generator/
   generate.py            # Main entry point - orchestrates card + alias generation
   card_downloader.py     # Core library - image download + overlay compositing
-  sync_alias.py          # Derives alias.json from the EDOPro card database
+  sync_cards.py          # Regenerates cards.json from the upstream Genesys lflist
+  sync_alias.py          # Derives alias.json from EDOPro's card databases
+  genesys_source.py      # Reads the Genesys list (lflist.conf or cards.json)
+  sync_pictures.py       # Publishes generated_cards/ into genesys-pictures pics/
   apply_alias_overlay.py # Standalone alias overlay processor (imports card_downloader)
-  cards.json             # Card data: array of {name, points, code}
+  cards.json             # Card data: array of {name, points, code} (generated)
   alias.json             # Maps original card codes -> alias card codes (derived)
   alias_images/          # Committed alias card images (.jpg) - the curated tier
   tests/                 # pytest suite (test_*.py) + conftest.py for sys.path
   requirements.txt       # Python deps (requests, Pillow, pytest)
   setup.sh               # Bootstrap script (creates venv, installs deps)
+  .github/workflows/publish.yml # Scheduled sync + image publish to genesys-pictures
   generated_cards/       # Output directory (gitignored)
   downloaded_cards/      # Alt output directory (gitignored)
 ```
@@ -63,15 +68,70 @@ python3 generate.py --high-quality
 # Download-only helper (standalone)
 python3 card_downloader.py --help
 
-# Derive alias.json from the EDOPro card database
-python3 sync_alias.py
+# Regenerate cards.json from the upstream Genesys lflist (cards.json is GENERATED)
+python3 sync_cards.py --source /path/to/evolution-assets/lflist/genesys.lflist.conf
 
-# Verify alias.json is in sync without writing (exits 1 on drift - use in CI)
-python3 sync_alias.py --check
+# Verify cards.json is in sync without writing (exits 1 on drift - use in CI)
+python3 sync_cards.py --source /path/to/evolution-assets/lflist/genesys.lflist.conf --check
+
+# Derive alias.json from EDOPro's card databases (Project Ignis). Shallow-clone
+# both repos, then pass both directories - BabelCDB first so the delta wins:
+git clone --depth 1 https://github.com/ProjectIgnis/BabelCDB.git /tmp/BabelCDB
+git clone --depth 1 https://github.com/ProjectIgnis/DeltaBagooska.git /tmp/DeltaBagooska
+python3 sync_alias.py --cdb-dir /tmp/BabelCDB --cdb-dir /tmp/DeltaBagooska
+
+# Verify alias.json and alias_images/ are in sync without writing or deleting
+# (exits 1 on drift - use in CI)
+python3 sync_alias.py --cdb-dir /tmp/BabelCDB --cdb-dir /tmp/DeltaBagooska --check
+
+# Publish images into a genesys-pictures checkout (THE publish command), then
+# commit + push in that repo. Preview first with --dry-run.
+python3 sync_pictures.py --target /path/to/genesys-pictures/pics --dry-run
+python3 sync_pictures.py --target /path/to/genesys-pictures/pics
 
 # Run the test suite
 python3 -m pytest tests/ -q
 ```
+
+## Publishing Pictures
+
+`sync_pictures.py` is the only way images reach `evolutionygo/genesys-pictures`
+(`pics/`, read by EDOPro), both in `publish.yml` and manually
+(`python3 sync_pictures.py --target <genesys-pictures>/pics`, then commit with
+`git add -A` and push in that repo). It copies every generated `*.jpg`
+(overwrite propagates point updates), deletes a `pics/*.jpg` only when its code
+is not in the data (every `cards.json` code plus every key and value of
+`alias.json`), and keeps + reports desired images not generated this run.
+Non-`.jpg` files are never touched.
+
+It is deliberately NOT `rsync --delete`: `generate.py` continues past a failed
+download, so a transient 404 would unpublish a still-valid card. The keep-set
+comes from the data, never from this run's output.
+
+Safety guard (pure `check_safety`): it refuses, exit 1 and nothing changed,
+when the desired set is empty or the plan deletes more than 25% of the existing
+`pics/*.jpg`, so a broken cards.json or empty run cannot wipe production.
+`--force` bypasses it.
+
+## Alias Derivation
+
+Images target EDOPro only. An alternate art is any code that EDOPro's own card
+databases declare with `datas.alias` pointing to a Genesys base card. Those
+databases come from two Project Ignis repos (default branch `master`):
+
+- `ProjectIgnis/BabelCDB` - full databases
+- `ProjectIgnis/DeltaBagooska` - updates
+
+`sync_alias.py` reads every `*.cdb` in each `--cdb-dir`, except files whose name
+contains `rush`, `skills` or `goat` (case-insensitive) - Rush Duel, skill cards
+and GOAT never appear in Genesys. Files are discovered by globbing because
+prerelease names change. Overlay order: directories in the order given, files
+within a directory in sorted name order, later rows for the same `id` win - so
+pass BabelCDB first and DeltaBagooska second. The derivation is authoritative:
+ids EDOPro does not declare are removed from alias.json and their images are
+deleted from `alias_images/` (`--check` reports them as drift). Alias art is
+fetched from Project Ignis (`https://pics.projectignis.org:2096/pics`), which
+serves every alias EDOPro declares.
 
 ## Testing
 
@@ -89,16 +149,19 @@ Current modules:
 
 | File                            | Covers                                                        |
 |---------------------------------|---------------------------------------------------------------|
-| `tests/test_sync_alias.py`      | Alias map derivation, local-art preservation, diff, sqlite I/O |
-| `tests/test_card_downloader.py` | Alias art source order, mirror fallback, local cache hit       |
+| `tests/test_sync_cards.py`      | cards.json payload build, sorting, added/removed/point diff    |
+| `tests/test_sync_alias.py`      | Database selection, overlay read, alias derivation, orphan-image pruning, diff, CLI |
+| `tests/test_card_downloader.py` | Alias art source, source fallback ordering, local cache hit    |
 | `tests/test_generate.py`        | Alias phase: caching fetched art, reporting misses, `--strict`   |
+| `tests/test_sync_pictures.py`   | Desired set, copy/delete/stale plan, 25% guard, `--force`, dry run |
 
 **Tests must never hit the network.** Inject a fake session (an object with a
 `.get()` returning a stub exposing `.content` and `.raise_for_status()`) into
 `YugiohCardDownloader.session`, and use `tmp_path` for anything on disk. Pure
-logic (`build_alias_map`, `merge_preserved_aliases`, `diff_alias_maps`) is kept
-at module level in `sync_alias.py` precisely so it can be tested with plain
-data and no I/O.
+logic (`select_edopro_databases`, `build_alias_map`, `normalize_listed_codes`,
+`diff_alias_maps`) is kept at module level in `sync_alias.py` precisely so it
+can be tested with plain data and no I/O. Tests never read real `.cdb` files:
+build tiny sqlite fixtures in `tmp_path`.
 
 New logic is written test-first: add the failing test, watch it fail, then
 implement until green.

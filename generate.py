@@ -5,7 +5,7 @@ Generate Yu-Gi-Oh! Card Images with Genesys Points Overlay
 This script generates card images with point overlays and can run one or both phases:
 1. Download cards from a Genesys list source (.json or .lflist.conf) and apply point overlays.
 2. Apply point overlays to alias images (alias.json + alias_images/), fetching any
-   art that is not committed locally from the alias mirrors.
+   art that is not committed locally from the remote source (Project Ignis).
 
 All generated images are saved to a single output directory with consistent overlay settings.
 
@@ -51,7 +51,7 @@ class CardRegenerator:
             generation: What to generate: all, cards, alias
             codes: Optional list of card codes to restrict generation to
             cache_alias_images: Persist newly fetched alias art into
-                alias_images_dir so the curated store survives mirror rot
+                alias_images_dir so the curated store survives remote rot
             strict: Exit non-zero when an alias image cannot be produced
         """
         self.cards_path = Path(cards_path)
@@ -233,6 +233,36 @@ class CardRegenerator:
         print(f"✅ Successfully generated: {success_count}/{total_cards} primary cards")
 
 
+    def _resolve_family_card(self, original_code: str, alias_list: List) -> Optional[Dict]:
+        """
+        Find the listed Genesys card for an alias family.
+
+        Every printing in an alias family shares one point value, and Konami's
+        list is name-based: evolution-assets resolves those names to passcodes
+        through the ygoprodeck API, which may return ANY printing's passcode.
+        On 2026-09-23 Monster Reborn was listed as 83764719 instead of the base
+        card 83764718, so the base code alone is not enough to find the points.
+        alias.json already defines the family, so the fallback is a scan of its
+        members - no database access is needed here.
+
+        Args:
+            original_code: The base card code keying this alias.json entry
+            alias_list: The alternate-art codes of that family
+
+        Returns:
+            The listed card dict for the family, or None when neither the base
+            card nor any of its alternate arts is on the Genesys list.
+        """
+        if original_code in self.cards_data:
+            return self.cards_data[original_code]
+
+        for alias_code in alias_list:
+            listed_card = self.cards_data.get(str(alias_code))
+            if listed_card is not None:
+                return listed_card
+
+        return None
+
     def process_alias_cards(self, font_scale: float = 0.5, high_quality: bool = False):
         """Phase 2: Apply overlays for alias cards from alias.json."""
         print("\n--- Phase 2: Processing Alias Cards (from alias.json) ---")
@@ -255,29 +285,37 @@ class CardRegenerator:
         skipped_count = 0
         cached_codes: List[str] = []
         # Alias codes no source could serve, or that blew up while processing.
-        # Collected so one dead mirror does not hide the rest of the damage,
+        # Collected so one missing image does not hide the rest of the damage,
         # and so run_regeneration can repeat them as the very last output.
         failed_codes: List[str] = self.failed_alias_codes
 
         for original_code, alias_list in alias_items:
-            if original_code not in self.cards_data:
+            original_card = self._resolve_family_card(original_code, alias_list)
+            if original_card is None:
                 print(f"⚠️  Original card {original_code} not found, skipping its aliases")
                 skipped_count += len(alias_list)
                 continue
 
-            original_card = self.cards_data[original_code]
             points = original_card.get('points', 0)
             name = original_card.get('name', f"Card {original_code}")
 
             print(f"Processing aliases for: {name} (Code: {original_code}, Points: {points})")
 
-            for alias_code in alias_list:
+            # Konami may list a family by an alternate passcode, in which case
+            # phase 1 never generated the base key. The base printing is the
+            # most common one and still needs its badge, so it joins the family.
+            codes_to_generate = list(alias_list)
+            if str(original_code) not in self.cards_data:
+                codes_to_generate.insert(0, original_code)
+            total_aliases += len(codes_to_generate) - len(alias_list)
+
+            for alias_code in codes_to_generate:
                 alias_code_str = str(alias_code)
                 image_path = self.alias_images_dir / f"{alias_code_str}.jpg"
                 output_path = self.output_dir / f"{alias_code_str}.jpg"
 
                 try:
-                    # 1. Resolve the art: committed file first, then mirrors.
+                    # 1. Resolve the art: committed file first, then Project Ignis.
                     fetched = self.downloader.fetch_alias_image(
                         alias_code_str, local_dir=self.alias_images_dir
                     )
@@ -290,8 +328,7 @@ class CardRegenerator:
                     from_network = source != self.downloader.LOCAL_ALIAS_SOURCE
 
                     # 2. Persist freshly fetched art so the curated store
-                    # survives mirror rot: most of the images committed today
-                    # are already gone from the fallback mirror.
+                    # survives the remote source dropping an image.
                     if from_network and self.cache_alias_images and self.alias_images_dir:
                         try:
                             self.alias_images_dir.mkdir(parents=True, exist_ok=True)
@@ -330,7 +367,7 @@ class CardRegenerator:
                   f"{self.alias_images_dir}:")
             for alias_code_str in cached_codes:
                 print(f"  💾 {alias_code_str}.jpg")
-            print("ℹ️  Commit these files so the pack no longer depends on the mirrors.")
+            print("ℹ️  Commit these files so the pack no longer depends on the remote source.")
 
         # A miss is loud but not fatal. The output is 954 independent files
         # read per-card by the client, so a card whose art no source carries
@@ -407,7 +444,7 @@ def main():
         action='store_true',
         help='Do not persist newly downloaded alias art into the alias images '
              'directory (default: art is cached so the curated store survives '
-             'mirror rot)'
+             'the remote source dropping an image)'
     )
     parser.add_argument(
         '--code',
