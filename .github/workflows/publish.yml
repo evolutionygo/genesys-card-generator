@@ -1,0 +1,126 @@
+# Publish Genesys card images.
+#
+# REQUIRED REPOSITORY SECRET: PICTURES_TOKEN
+#
+# PICTURES_TOKEN must be a Personal Access Token with write access to the
+# repository `evolutionygo/genesys-pictures` (the picture repository EDOPro
+# clones). It is used only by the last step, "Publish to genesys-pictures".
+#
+# Without that secret the final publish step FAILS, but everything before it
+# still works: the Genesys list and card databases are still downloaded,
+# cards.json and alias.json are still regenerated, the images are still
+# generated, and the refreshed data is still committed back to THIS repository
+# with the default GITHUB_TOKEN. Only the copy into genesys-pictures is lost.
+#
+# Data flow: diangogav/evolution-assets (Genesys list, regenerated every
+# 6 hours) + ProjectIgnis/BabelCDB and ProjectIgnis/DeltaBagooska (EDOPro's
+# card databases, source of the alternate arts) -> this repository
+# (cards.json, alias.json, alias_images/, images) ->
+# evolutionygo/genesys-pictures (what EDOPro consumes).
+
+name: Publish Genesys card images
+
+on:
+  schedule:
+    # Offset from the evolution-assets run so this job sees a fresh list.
+    - cron: "30 */6 * * *"
+  workflow_dispatch: {}
+  # Declared so evolution-assets can notify this repository directly once a
+  # sender is wired up there. Until then the schedule is what keeps it fresh.
+  repository_dispatch:
+    types: [genesys-updated]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-genesys-images
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Download the Genesys list from evolution-assets
+        run: |
+          set -euo pipefail
+          mkdir -p "${{ runner.temp }}/assets"
+          # -f makes curl fail the step on an HTTP error instead of writing an
+          # empty file that would silently wipe cards.json.
+          curl -fsSL \
+            -o "${{ runner.temp }}/assets/genesys.lflist.conf" \
+            https://raw.githubusercontent.com/diangogav/evolution-assets/main/lflist/genesys.lflist.conf
+
+      - name: Clone EDOPro's card databases
+        # BabelCDB holds the full databases and DeltaBagooska the updates;
+        # sync_alias.py reads them in that order so updates win.
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/ProjectIgnis/BabelCDB.git "${{ runner.temp }}/BabelCDB"
+          git clone --depth 1 https://github.com/ProjectIgnis/DeltaBagooska.git "${{ runner.temp }}/DeltaBagooska"
+
+      - name: Regenerate cards.json from the Genesys list
+        run: python3 sync_cards.py --source "${{ runner.temp }}/assets/genesys.lflist.conf"
+
+      - name: Regenerate alias.json from EDOPro's card databases
+        run: >-
+          python3 sync_alias.py
+          --cdb-dir "${{ runner.temp }}/BabelCDB"
+          --cdb-dir "${{ runner.temp }}/DeltaBagooska"
+          --cards cards.json
+
+      - name: Generate the card images
+        # Defaults to cards.json, which the sync step above just refreshed.
+        run: python3 generate.py
+
+      - name: Commit the refreshed data back to this repository
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain cards.json alias.json alias_images/)" ]; then
+            echo "Nothing changed in cards.json, alias.json or alias_images/."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add cards.json alias.json alias_images/
+          git commit -m "chore: sync Genesys card list and alias map"
+          git pull --rebase --autostash origin main || true
+          git push origin HEAD:main
+
+      - name: Check out genesys-pictures
+        uses: actions/checkout@v4
+        with:
+          repository: evolutionygo/genesys-pictures
+          token: ${{ secrets.PICTURES_TOKEN }}
+          path: genesys-pictures
+
+      - name: Publish to genesys-pictures
+        run: |
+          set -euo pipefail
+          # Copies every generated image and deletes only images whose code is
+          # no longer in cards.json/alias.json (not rsync --delete: a failed
+          # download must not unpublish a still-valid card). Run from the repo
+          # root; it refuses to delete more than 25% of pics/ without --force.
+          python3 sync_pictures.py --target genesys-pictures/pics
+          cd genesys-pictures
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No picture changes to publish."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: sync Genesys card images"
+          git push
