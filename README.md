@@ -378,9 +378,11 @@ Each run:
 5. Commits `cards.json`, `alias.json` and `alias_images/` back to this repository, only if they actually changed.
 6. Runs `sync_pictures.py --target genesys-pictures/pics` to copy the generated images into `evolutionygo/genesys-pictures` and delete the ones no longer in the data (see [Publishing the images](#publishing-the-images)), then commits with `git add -A` so deletions are included, and pushes only if something changed.
 
-### Required secret: `PICTURES_TOKEN`
+### Required secret: `PICTURES_DEPLOY_KEY`
 
-Step 6 needs a repository secret named `PICTURES_TOKEN`: a Personal Access Token with **write access to `evolutionygo/genesys-pictures`** (the picture repository EDOPro clones). Everything up to step 5 uses the default `GITHUB_TOKEN` and works without it; without `PICTURES_TOKEN` only the final publish step fails.
+Step 6 needs a repository secret named `PICTURES_DEPLOY_KEY`: the private half of an SSH deploy key installed on **`evolutionygo/genesys-pictures`** (the picture repository EDOPro clones) with write access enabled. Everything up to step 5 uses the default `GITHUB_TOKEN` and works without it; without `PICTURES_DEPLOY_KEY` only the final publish step fails.
+
+A deploy key rather than a personal access token: it is scoped to that one repository, it does not expire, and it survives any change to an individual's account. Generate it with `ssh-keygen -t ed25519 -C "genesys-pictures publish"`, add the public half under the picture repository's **Settings -> Deploy keys** with *Allow write access* checked, and store the private half as this secret.
 
 ## Example Output
 

@@ -1,10 +1,16 @@
 # Publish Genesys card images.
 #
-# REQUIRED REPOSITORY SECRET: PICTURES_TOKEN
+# REQUIRED REPOSITORY SECRET: PICTURES_DEPLOY_KEY
 #
-# PICTURES_TOKEN must be a Personal Access Token with write access to the
-# repository `evolutionygo/genesys-pictures` (the picture repository EDOPro
-# clones). It is used only by the last step, "Publish to genesys-pictures".
+# PICTURES_DEPLOY_KEY must be the PRIVATE half of an SSH deploy key installed
+# on `evolutionygo/genesys-pictures` (the picture repository EDOPro clones)
+# with write access enabled. It is used only by the last two steps.
+#
+# A deploy key rather than a token on purpose: it is scoped to that one
+# repository, it does not expire, and it is not tied to a personal account.
+# An expiring token fails this job silently -- every step before it still
+# reports success, so a red run looks like a transient blip rather than an
+# outage.
 #
 # Without that secret the final publish step FAILS, but everything before it
 # still works: the Genesys list and card databases are still downloaded,
@@ -103,7 +109,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: evolutionygo/genesys-pictures
-          token: ${{ secrets.PICTURES_TOKEN }}
+          ssh-key: ${{ secrets.PICTURES_DEPLOY_KEY }}
           path: genesys-pictures
 
       - name: Publish to genesys-pictures
