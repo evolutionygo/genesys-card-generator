@@ -155,11 +155,6 @@
     "code": 3280747
   },
   {
-    "name": "Crimson Blade Dragon",
-    "points": 10,
-    "code": 3294539
-  },
-  {
     "name": "The Phantom Knights' Rank-Up-Magic Launch",
     "points": 1,
     "code": 3298689
@@ -762,7 +757,7 @@
   {
     "name": "Harpie's Feather Duster",
     "points": 9,
-    "code": 18144507
+    "code": 18144506
   },
   {
     "name": "Schwarzschild Infinity Dragon",
@@ -2745,6 +2740,11 @@
     "code": 68462976
   },
   {
+    "name": "Fallen of the White Dragon",
+    "points": 30,
+    "code": 68468459
+  },
+  {
     "name": "Mind Drain",
     "points": 100,
     "code": 68937720
@@ -2943,11 +2943,6 @@
     "name": "Ghost Belle & Haunted Mansion",
     "points": 6,
     "code": 73642296
-  },
-  {
-    "name": "Fallen of the White Dragon",
-    "points": 30,
-    "code": 73819701
   },
   {
     "name": "Tearlaments Reinoheart",
@@ -3210,6 +3205,11 @@
     "code": 80181649
   },
   {
+    "name": "Crimson Blade Dragon",
+    "points": 10,
+    "code": 80321197
+  },
+  {
     "name": "Wishes for Eyes of Blue",
     "points": 33,
     "code": 80326401
@@ -3342,7 +3342,7 @@
   {
     "name": "Monster Reborn",
     "points": 3,
-    "code": 83764719
+    "code": 83764718
   },
   {
     "name": "Expurrely Noir",
