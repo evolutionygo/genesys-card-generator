@@ -4,7 +4,14 @@
 #
 # PICTURES_DEPLOY_KEY must be the PRIVATE half of an SSH deploy key installed
 # on `evolutionygo/genesys-pictures` (the picture repository EDOPro clones)
-# with write access enabled. It is used only by the last two steps.
+# with write access enabled. It is used only by the genesys-pictures steps.
+#
+# REQUIRED REPOSITORY SECRET: PICTURES_HQ_DEPLOY_KEY
+#
+# Same contract for `evolutionygo/genesys-pictures-hq`, the high-quality set.
+# A separate key because GitHub does not allow one deploy key on two
+# repositories. The HQ steps run last, so a missing key only loses the HQ
+# publish; the standard set is already out.
 #
 # A deploy key rather than a token on purpose: it is scoped to that one
 # repository, it does not expire, and it is not tied to a personal account.
@@ -22,7 +29,8 @@
 # 6 hours) + ProjectIgnis/BabelCDB and ProjectIgnis/DeltaBagooska (EDOPro's
 # card databases, source of the alternate arts) -> this repository
 # (cards.json, alias.json, alias_images/, images) ->
-# evolutionygo/genesys-pictures (what EDOPro consumes).
+# evolutionygo/genesys-pictures (what EDOPro consumes) and
+# evolutionygo/genesys-pictures-hq (the same set, generated with -hq).
 
 name: Publish Genesys card images
 
@@ -123,6 +131,35 @@ jobs:
           cd genesys-pictures
           if [ -z "$(git status --porcelain)" ]; then
             echo "No picture changes to publish."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: sync Genesys card images"
+          git push
+
+      - name: Generate the high-quality card images
+        # Separate output directory so the standard set above is not touched.
+        # Alias art stays 177x254: Project Ignis is the only source that serves
+        # the exact art players see, and it has no larger size.
+        run: python3 generate.py --high-quality --output generated_cards_hq
+
+      - name: Check out genesys-pictures-hq
+        uses: actions/checkout@v4
+        with:
+          repository: evolutionygo/genesys-pictures-hq
+          ssh-key: ${{ secrets.PICTURES_HQ_DEPLOY_KEY }}
+          path: genesys-pictures-hq
+
+      - name: Publish to genesys-pictures-hq
+        run: |
+          set -euo pipefail
+          # Same deletion contract and safety guard as the standard publish.
+          python3 sync_pictures.py --generated generated_cards_hq --target genesys-pictures-hq/pics
+          cd genesys-pictures-hq
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No HQ picture changes to publish."
             exit 0
           fi
           git config user.name "github-actions[bot]"
