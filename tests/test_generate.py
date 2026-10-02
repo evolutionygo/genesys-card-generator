@@ -293,3 +293,56 @@ class TestAliasFamilyBaseArt:
         assert regenerator.failed_alias_codes == ['1001']
         assert (tmp_path / 'generated_cards' / '1002.jpg').exists()
         assert '1/2 alias cards' in capsys.readouterr().out
+
+
+class TestProcessPrimaryCards:
+    """Phase 1 picks the art source per card code."""
+
+    def test_prerelease_card_is_fetched_from_project_ignis(self, tmp_path: Path):
+        regenerator = build_regenerator(
+            tmp_path, {}, cards=[{'code': 101402090, 'name': 'Prerelease', 'points': 20}]
+        )
+        url = 'https://pics.projectignis.org:2096/pics/101402090.jpg'
+        regenerator.downloader.session = FakeSession({url: StubResponse(make_jpeg_bytes())})
+
+        regenerator.process_primary_cards()
+
+        assert regenerator.downloader.session.requested_urls == [url]
+        assert (tmp_path / 'generated_cards' / '101402090.jpg').exists()
+
+    def test_prerelease_card_falls_back_to_ygoprodeck(self, tmp_path: Path):
+        regenerator = build_regenerator(
+            tmp_path, {}, cards=[{'code': 101402090, 'name': 'Prerelease', 'points': 20}]
+        )
+        url = 'https://images.ygoprodeck.com/images/cards/101402090.jpg'
+        regenerator.downloader.session = FakeSession({url: StubResponse(make_jpeg_bytes())})
+
+        regenerator.process_primary_cards()
+
+        assert (tmp_path / 'generated_cards' / '101402090.jpg').exists()
+
+    def test_one_failing_card_does_not_stop_the_batch(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        regenerator = build_regenerator(
+            tmp_path,
+            {},
+            cards=[
+                {'code': 1001, 'name': 'Broken', 'points': 1},
+                {'code': 1002, 'name': 'Fine', 'points': 1},
+            ],
+        )
+        real_fetch = regenerator.downloader.fetch_base_image
+
+        def fetch(card_code: str) -> bytes:
+            if str(card_code) == '1001':
+                raise ValueError('malformed code')
+            return real_fetch(card_code)
+
+        monkeypatch.setattr(regenerator.downloader, 'fetch_base_image', fetch)
+        url = 'https://images.ygoprodeck.com/images/cards/1002.jpg'
+        regenerator.downloader.session = FakeSession({url: StubResponse(make_jpeg_bytes())})
+
+        regenerator.process_primary_cards()
+
+        assert (tmp_path / 'generated_cards' / '1002.jpg').exists()

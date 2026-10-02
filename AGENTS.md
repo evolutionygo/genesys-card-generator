@@ -3,7 +3,7 @@
 ## Project Overview
 
 Python tool that generates Yu-Gi-Oh! card images with Genesys point overlays.
-Downloads card art (base cards from YGOPRODeck, alternate-art printings from
+Downloads card art (base cards from YGOPRODeck, prerelease and alternate-art printings from
 Project Ignis, EDOPro's picture source) and composites point badges onto card
 images. The Python sources are the seven top-level `*.py` files listed under
 Project Structure.
@@ -151,8 +151,8 @@ Current modules:
 |---------------------------------|---------------------------------------------------------------|
 | `tests/test_sync_cards.py`      | cards.json payload build, sorting, added/removed/point diff    |
 | `tests/test_sync_alias.py`      | Database selection, overlay read, alias derivation, orphan-image pruning, diff, CLI |
-| `tests/test_card_downloader.py` | Alias art source, source fallback ordering, local cache hit    |
-| `tests/test_generate.py`        | Alias phase: caching fetched art, reporting misses, `--strict`   |
+| `tests/test_card_downloader.py` | Alias art source, source fallback ordering, local cache hit, prerelease base-art source + fallback |
+| `tests/test_generate.py`        | Alias phase: caching fetched art, reporting misses, `--strict`; Phase 1 art source + per-card isolation |
 | `tests/test_sync_pictures.py`   | Desired set, copy/delete/stale plan, 25% guard, `--force`, dry run |
 
 **Tests must never hit the network.** Inject a fake session (an object with a

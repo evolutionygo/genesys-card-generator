@@ -200,20 +200,19 @@ class CardRegenerator:
             
             print(f"[{i}/{total_cards}] Downloading: {name} (Code: {card_code}, Points: {points})")
 
-            # We use the downloader's direct image URL and session
-            image_url = f"{self.downloader.BASE_IMAGE_URL}/{card_code}.jpg"
             filename = f"{card_code}.jpg"
             output_path = self.output_dir / filename
 
             try:
-                # 1. Download image
-                response = self.downloader.session.get(image_url, timeout=30)
-                response.raise_for_status()
-                
+                # 1. Download image (walks the downloader's ordered sources)
+                image_data = self.downloader.fetch_base_image(card_code)
+                if image_data is None:
+                    raise RuntimeError("no image source could provide the art")
+
                 # 2. Apply overlay with consistent settings
                 # Use custom_quality=50 to keep file size down even in HQ mode (since images are large)
                 modified_image_data = self.downloader.add_points_overlay(
-                    response.content, points, font_scale=font_scale, high_quality=high_quality, custom_quality=50
+                    image_data, points, font_scale=font_scale, high_quality=high_quality, custom_quality=50
                 )
 
                 # 3. Save to the unified output directory
