@@ -293,3 +293,19 @@ class TestAliasFamilyBaseArt:
         assert regenerator.failed_alias_codes == ['1001']
         assert (tmp_path / 'generated_cards' / '1002.jpg').exists()
         assert '1/2 alias cards' in capsys.readouterr().out
+
+
+class TestProcessPrimaryCards:
+    """Phase 1 picks the art source per card code."""
+
+    def test_prerelease_card_is_fetched_from_project_ignis(self, tmp_path: Path):
+        regenerator = build_regenerator(
+            tmp_path, {}, cards=[{'code': 101402090, 'name': 'Prerelease', 'points': 20}]
+        )
+        url = 'https://pics.projectignis.org:2096/pics/101402090.jpg'
+        regenerator.downloader.session = FakeSession({url: StubResponse(make_jpeg_bytes())})
+
+        regenerator.process_primary_cards()
+
+        assert regenerator.downloader.session.requested_urls == [url]
+        assert (tmp_path / 'generated_cards' / '101402090.jpg').exists()

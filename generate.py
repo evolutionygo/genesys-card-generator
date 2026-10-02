@@ -200,8 +200,8 @@ class CardRegenerator:
             
             print(f"[{i}/{total_cards}] Downloading: {name} (Code: {card_code}, Points: {points})")
 
-            # We use the downloader's direct image URL and session
-            image_url = f"{self.downloader.BASE_IMAGE_URL}/{card_code}.jpg"
+            # We use the downloader's image URL and session
+            image_url = self.downloader.base_image_url(card_code)
             filename = f"{card_code}.jpg"
             output_path = self.output_dir / filename
 

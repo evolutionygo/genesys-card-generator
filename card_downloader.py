@@ -8,7 +8,8 @@ adds point values as overlay text.
 Two different art sources are used, because base cards and alternate-art
 (alias) printings are not available from the same place:
 
-- Base cards come from YGOPRODeck (`BASE_IMAGE_URL`).
+- Base cards come from YGOPRODeck (`BASE_IMAGE_URL`), except prerelease codes,
+  which come from Project Ignis (`PRERELEASE_IMAGE_URL`).
 - Alias printings come from the sources in `ALIAS_IMAGE_URLS`, with committed
   art in `alias_images/` taking precedence over any network source.
 """
@@ -28,6 +29,13 @@ class YugiohCardDownloader:
     """Downloads Yu-Gi-Oh! card images directly from YGOPRODeck and adds Genesys point overlays."""
     
     BASE_IMAGE_URL = "https://images.ygoprodeck.com/images/cards"
+
+    # Prerelease cards carry EDOPro's 9-digit placeholder codes until their
+    # official passcode is announced. YGOPRODeck serves leaked photos of the
+    # physical card for those codes (skewed, edges cropped), so they come from
+    # Project Ignis instead: the clean render EDOPro itself shows.
+    PRERELEASE_IMAGE_URL = "https://pics.projectignis.org:2096/pics"
+    PRERELEASE_CODE_MIN = 100000000
 
     # Alias (alternate-art) sources, tried in this exact order.
     #
@@ -337,6 +345,20 @@ class YugiohCardDownloader:
 
         return None
 
+    def base_image_url(self, card_code: str) -> str:
+        """
+        Build the art URL for a base (non-alias) card code.
+
+        Args:
+            card_code: The card code (string or int).
+
+        Returns:
+            The Project Ignis URL for a prerelease code, YGOPRODeck otherwise.
+        """
+        if int(card_code) >= self.PRERELEASE_CODE_MIN:
+            return f"{self.PRERELEASE_IMAGE_URL}/{card_code}.jpg"
+        return f"{self.BASE_IMAGE_URL}/{card_code}.jpg"
+
     def download_image(self, url: str, filename: str, points: int) -> bool:
         """
         Download an image from URL, add points overlay, and save to file.
@@ -386,8 +408,7 @@ class YugiohCardDownloader:
         
         print(f"📥 Downloading image for: {card_name} (ID: {card_code}, Points: {points})")
         
-        # Construct direct image URL
-        image_url = f"{self.BASE_IMAGE_URL}/{card_code}.jpg"
+        image_url = self.base_image_url(card_code)
         filename = f"{card_code}.jpg"
         
         if self.download_image(image_url, filename, points):
