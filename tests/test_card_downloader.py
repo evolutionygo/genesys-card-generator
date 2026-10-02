@@ -174,32 +174,80 @@ class TestFetchAliasImage:
         ]
 
 
-class TestBaseImageUrl:
-    """Base art source: YGOPRODeck, except prerelease codes from Project Ignis."""
+IGNIS_PRERELEASE = 'https://pics.projectignis.org:2096/pics/101402090.jpg'
+YGOPRODECK_PRERELEASE = 'https://images.ygoprodeck.com/images/cards/101402090.jpg'
 
-    def test_official_code_uses_ygoprodeck(self, downloader: YugiohCardDownloader):
-        assert downloader.base_image_url('50284408') == (
+
+class TestBaseImageUrls:
+    """Base art sources: YGOPRODeck, with Project Ignis first for prerelease codes."""
+
+    def test_official_code_uses_only_ygoprodeck(self, downloader: YugiohCardDownloader):
+        assert downloader.base_image_urls('50284408') == [
             'https://images.ygoprodeck.com/images/cards/50284408.jpg'
-        )
+        ]
 
-    def test_prerelease_code_uses_project_ignis(self, downloader: YugiohCardDownloader):
-        assert downloader.base_image_url('101402090') == (
-            'https://pics.projectignis.org:2096/pics/101402090.jpg'
-        )
+    def test_prerelease_code_tries_project_ignis_then_ygoprodeck(
+        self, downloader: YugiohCardDownloader
+    ):
+        assert downloader.base_image_urls(101402090) == [
+            IGNIS_PRERELEASE,
+            YGOPRODECK_PRERELEASE,
+        ]
 
     def test_threshold_is_the_first_nine_digit_code(self, downloader: YugiohCardDownloader):
-        assert downloader.base_image_url('99999999').startswith(
-            YugiohCardDownloader.BASE_IMAGE_URL
-        )
-        assert downloader.base_image_url('100000000').startswith(
-            YugiohCardDownloader.PRERELEASE_IMAGE_URL
-        )
+        assert len(downloader.base_image_urls('99999999')) == 1
+        assert len(downloader.base_image_urls('100000000')) == 2
 
-    def test_download_card_image_requests_the_prerelease_source(
+    def test_non_numeric_code_does_not_raise(self, downloader: YugiohCardDownloader):
+        assert downloader.base_image_urls('abc') == [
+            'https://images.ygoprodeck.com/images/cards/abc.jpg'
+        ]
+
+
+class TestFetchBaseImage:
+    """Base art fetch walks the ordered sources and survives a dead mirror."""
+
+    def test_prerelease_prefers_project_ignis(self, downloader: YugiohCardDownloader):
+        downloader.session = FakeSession({IGNIS_PRERELEASE: StubResponse(b'ignis-art')})
+        assert downloader.fetch_base_image(101402090) == b'ignis-art'
+        assert downloader.session.requested_urls == [IGNIS_PRERELEASE]
+
+    def test_prerelease_falls_back_to_ygoprodeck_on_a_miss(
+        self, downloader: YugiohCardDownloader
+    ):
+        downloader.session = FakeSession(
+            {YGOPRODECK_PRERELEASE: StubResponse(b'ygoprodeck-art')}
+        )
+        assert downloader.fetch_base_image(101402090) == b'ygoprodeck-art'
+        assert downloader.session.requested_urls == [IGNIS_PRERELEASE, YGOPRODECK_PRERELEASE]
+
+    def test_a_raising_source_falls_through(self, downloader: YugiohCardDownloader):
+        class ExplodingIgnis(FakeSession):
+            def get(self, url: str, timeout: int = 0) -> StubResponse:
+                if url == IGNIS_PRERELEASE:
+                    self.requested_urls.append(url)
+                    raise requests.exceptions.ConnectionError('port 2096 blocked')
+                return super().get(url, timeout)
+
+        downloader.session = ExplodingIgnis({YGOPRODECK_PRERELEASE: StubResponse(b'art')})
+        assert downloader.fetch_base_image(101402090) == b'art'
+
+    def test_empty_body_is_treated_as_a_miss(self, downloader: YugiohCardDownloader):
+        downloader.session = FakeSession(
+            {IGNIS_PRERELEASE: StubResponse(b''), YGOPRODECK_PRERELEASE: StubResponse(b'art')}
+        )
+        assert downloader.fetch_base_image(101402090) == b'art'
+
+    def test_returns_none_when_every_source_misses(self, downloader: YugiohCardDownloader):
+        assert downloader.fetch_base_image(101402090) is None
+
+    def test_download_card_image_uses_the_fallback(
         self, downloader: YugiohCardDownloader, monkeypatch: pytest.MonkeyPatch
     ):
         monkeypatch.setattr(downloader, 'add_points_overlay', lambda data, points: data)
-        url = 'https://pics.projectignis.org:2096/pics/101402090.jpg'
-        downloader.session = FakeSession({url: StubResponse(b'ignis-art')})
+        downloader.session = FakeSession({YGOPRODECK_PRERELEASE: StubResponse(b'art')})
         assert downloader.download_card_image({'code': 101402090, 'points': 20})
-        assert downloader.session.requested_urls == [url]
+        assert (downloader.output_dir / '101402090.jpg').read_bytes() == b'art'
+
+    def test_download_card_image_reports_a_total_miss(self, downloader: YugiohCardDownloader):
+        assert not downloader.download_card_image({'code': 101402090, 'points': 20})

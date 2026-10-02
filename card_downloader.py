@@ -9,7 +9,7 @@ Two different art sources are used, because base cards and alternate-art
 (alias) printings are not available from the same place:
 
 - Base cards come from YGOPRODeck (`BASE_IMAGE_URL`), except prerelease codes,
-  which come from Project Ignis (`PRERELEASE_IMAGE_URL`).
+  which try Project Ignis (`PRERELEASE_IMAGE_URL`) first, YGOPRODeck second.
 - Alias printings come from the sources in `ALIAS_IMAGE_URLS`, with committed
   art in `alias_images/` taking precedence over any network source.
 """
@@ -20,7 +20,7 @@ import sys
 import time
 import requests
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 from PIL import Image, ImageDraw, ImageFont
 import io
 
@@ -32,8 +32,9 @@ class YugiohCardDownloader:
 
     # Prerelease cards carry EDOPro's 9-digit placeholder codes until their
     # official passcode is announced. YGOPRODeck serves leaked photos of the
-    # physical card for those codes (skewed, edges cropped), so they come from
-    # Project Ignis instead: the clean render EDOPro itself shows.
+    # physical card for those codes (skewed, edges cropped), so they try
+    # Project Ignis first (the clean render EDOPro itself shows) and keep
+    # YGOPRODeck only as a fallback.
     PRERELEASE_IMAGE_URL = "https://pics.projectignis.org:2096/pics"
     PRERELEASE_CODE_MIN = 100000000
 
@@ -345,19 +346,50 @@ class YugiohCardDownloader:
 
         return None
 
-    def base_image_url(self, card_code: str) -> str:
+    def base_image_urls(self, card_code: Union[str, int]) -> List[str]:
         """
-        Build the art URL for a base (non-alias) card code.
+        List the art URLs for a base (non-alias) card code, in try order.
+
+        Prerelease codes try Project Ignis first and keep YGOPRODeck as a
+        fallback, so an unreachable mirror degrades to the cropped photo
+        instead of no image at all.
 
         Args:
             card_code: The card code (string or int).
 
         Returns:
-            The Project Ignis URL for a prerelease code, YGOPRODeck otherwise.
+            The ordered list of candidate URLs.
         """
-        if int(card_code) >= self.PRERELEASE_CODE_MIN:
-            return f"{self.PRERELEASE_IMAGE_URL}/{card_code}.jpg"
-        return f"{self.BASE_IMAGE_URL}/{card_code}.jpg"
+        code = str(card_code)
+        urls = [f"{self.BASE_IMAGE_URL}/{code}.jpg"]
+        if code.isdigit() and int(code) >= self.PRERELEASE_CODE_MIN:
+            urls.insert(0, f"{self.PRERELEASE_IMAGE_URL}/{code}.jpg")
+        return urls
+
+    def fetch_base_image(self, card_code: Union[str, int]) -> Optional[bytes]:
+        """
+        Fetch the raw art for a base card, walking `base_image_urls` in order.
+
+        Individual source failures are logged as warnings and the next source
+        is tried; no exception is raised on a total miss.
+
+        Args:
+            card_code: The card code (string or int).
+
+        Returns:
+            The image bytes, or None when no source could provide them.
+        """
+        for url in self.base_image_urls(card_code):
+            try:
+                response = self.session.get(url, timeout=30)
+                response.raise_for_status()
+                if not response.content:
+                    print(f"  ⚠️  Empty response for {card_code} from {url}")
+                    continue
+                return response.content
+            except requests.exceptions.RequestException as e:
+                print(f"  ⚠️  Card {card_code} unavailable from {url}: {e}")
+        return None
 
     def download_image(self, url: str, filename: str, points: int) -> bool:
         """
@@ -408,15 +440,22 @@ class YugiohCardDownloader:
         
         print(f"📥 Downloading image for: {card_name} (ID: {card_code}, Points: {points})")
         
-        image_url = self.base_image_url(card_code)
         filename = f"{card_code}.jpg"
-        
-        if self.download_image(image_url, filename, points):
-            print(f"  ✅ Downloaded with {points} points overlay: {filename}")
-            return True
-        else:
+
+        image_data = self.fetch_base_image(card_code)
+        if image_data is None:
             print(f"  ❌ Failed to download image for card {card_code}")
             return False
+
+        try:
+            with open(self.output_dir / filename, 'wb') as f:
+                f.write(self.add_points_overlay(image_data, points))
+        except (OSError, IOError) as e:
+            print(f"❌ Error saving image to {filename}: {e}")
+            return False
+
+        print(f"  ✅ Downloaded with {points} points overlay: {filename}")
+        return True
     
     def download_all_cards(self, json_path: str):
         """
