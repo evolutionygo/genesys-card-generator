@@ -370,8 +370,9 @@ class YugiohCardDownloader:
         """
         Fetch the raw art for a base card, walking `base_image_urls` in order.
 
-        Individual source failures are logged as warnings and the next source
-        is tried; no exception is raised on a total miss.
+        Individual source failures (network errors, empty or non-image bodies)
+        are logged as warnings and the next source is tried; no exception is
+        raised on a total miss.
 
         Args:
             card_code: The card code (string or int).
@@ -386,9 +387,15 @@ class YugiohCardDownloader:
                 if not response.content:
                     print(f"  ⚠️  Empty response for {card_code} from {url}")
                     continue
+                # A mirror can answer 200 with an error page or placeholder;
+                # treat anything that is not a decodable image as a miss so
+                # the next source still gets a chance.
+                Image.open(io.BytesIO(response.content)).verify()
                 return response.content
             except requests.exceptions.RequestException as e:
                 print(f"  ⚠️  Card {card_code} unavailable from {url}: {e}")
+            except (OSError, SyntaxError) as e:
+                print(f"  ⚠️  Card {card_code} from {url} is not a valid image: {e}")
         return None
 
     def download_image(self, url: str, filename: str, points: int) -> bool:
