@@ -54,3 +54,5 @@ MANIFEST
 
 # Logs
 *.log
+# Skill registry cache
+.atl/

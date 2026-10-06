@@ -135,9 +135,15 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Publish as a single orphan commit so the repo never carries image
+          # history. Every point update regenerates the card art, so a linear
+          # history grows by the whole set each time and EDOPro clients, which
+          # clone the full history, fail on slow connections. EDOPro updates
+          # with reset --hard FETCH_HEAD, so a rewritten remote is safe.
+          git checkout --orphan publish
           git add -A
           git commit -m "chore: sync Genesys card images"
-          git push
+          git push --force origin HEAD:main
 
       - name: Generate the high-quality card images
         # Separate output directory so the standard set above is not touched.
@@ -164,6 +170,8 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Same single-orphan-commit publish as the standard set above.
+          git checkout --orphan publish
           git add -A
           git commit -m "chore: sync Genesys card images"
-          git push
+          git push --force origin HEAD:main

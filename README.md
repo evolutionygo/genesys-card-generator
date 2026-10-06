@@ -185,8 +185,10 @@ python3 sync_pictures.py --target /path/to/genesys-pictures/pics --dry-run
 
 # Publish, then commit and push in the genesys-pictures repository
 python3 sync_pictures.py --target /path/to/genesys-pictures/pics
-cd /path/to/genesys-pictures && git add -A && git commit -m "chore: sync Genesys card images" && git push
+cd /path/to/genesys-pictures && git checkout --orphan publish && git add -A && git commit -m "chore: sync Genesys card images" && git push --force origin HEAD:main
 ```
+
+The picture repositories are published as a single orphan commit, with no history: every point update regenerates the card art, so a linear history grows by the whole set each time, and EDOPro clones repositories in full. Any past version can be regenerated from the point list of that date.
 
 What it does:
 
