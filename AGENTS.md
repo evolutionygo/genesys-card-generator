@@ -116,7 +116,7 @@ when the desired set is empty or the plan deletes more than 25% of the existing
 ## Alias Derivation
 
 Images target EDOPro only. An alternate art is any code that EDOPro's own card
-databases declare with `datas.alias` pointing to a Genesys base card. Those
+databases declare with `datas.alias` pointing to a Genesys base card. A row counts only when its `texts.name` equals the base card's name (`datas.alias` also encodes "always treated as" cards, which are different cards) and its `datas.ot` has no bit outside `OT_OFFICIAL` (OCG|TCG|prerelease = 0x103; anime 0x4 is rejected by the server). Names and scopes are overlaid across all selected databases like aliases. Those
 databases come from two Project Ignis repos (default branch `master`):
 
 - `ProjectIgnis/BabelCDB` - full databases

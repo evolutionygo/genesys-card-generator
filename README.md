@@ -141,7 +141,7 @@ Both `sync_alias.py` and `generate.py` also accept a `genesys.lflist.conf` direc
 
 `alias.json` used to be maintained by hand, which meant new alternate-art printings silently shipped with **no points badge**. `sync_alias.py` derives it instead from EDOPro's own card databases.
 
-The images target EDOPro only, so the rule is: **an alternate art is any code that EDOPro's databases declare with `datas.alias` pointing to a Genesys base card**. A row `(id, alias)` means `id` is an alternate-art printing of the base card `alias`.
+The images target EDOPro only, so the rule is: **an alternate art is any code that EDOPro's databases declare with `datas.alias` pointing to a Genesys base card**. A row `(id, alias)` means `id` is an alternate-art printing of the base card `alias`. Two filters apply. `datas.alias` also encodes "This card is always treated as X" (e.g. Fallen of the White Dragon `73819701` is aliased to Fallen of Albaz `68468459`), a *different* card, so a row only counts when `texts.name` equals the base card's name (code distance is not used). And printings whose `datas.ot` has bits outside OCG (0x1), TCG (0x2) and prerelease (0x100), such as anime (0x4), are skipped: the server rejects them.
 
 EDOPro's databases come from two Project Ignis repositories:
 

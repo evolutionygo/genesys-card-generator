@@ -4,11 +4,17 @@
 import json
 import sqlite3
 from pathlib import Path
-from typing import List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import pytest
 
 import sync_alias
+
+
+def same_names(rows, codes=()) -> Dict[int, str]:
+    """Name every id in `rows` and `codes` "Card" so only the alias rule is under test."""
+    ids = {int(i) for pair in rows for i in pair} | {int(c) for c in codes}
+    return {card_id: 'Card' for card_id in ids}
 
 
 class TestBuildAliasMap:
@@ -18,7 +24,7 @@ class TestBuildAliasMap:
         rows = [(1002, 1001), (1003, 1001), (2002, 2001)]
         codes = {1001, 2001}
 
-        result = sync_alias.build_alias_map(rows, codes)
+        result = sync_alias.build_alias_map(rows, codes, same_names(rows, codes), {})
 
         assert result == {'1001': [1002, 1003], '2001': [2002]}
 
@@ -26,7 +32,7 @@ class TestBuildAliasMap:
         rows = [(1002, 1001), (9002, 9001)]
         codes = {1001}
 
-        result = sync_alias.build_alias_map(rows, codes)
+        result = sync_alias.build_alias_map(rows, codes, same_names(rows, codes), {})
 
         assert result == {'1001': [1002]}
 
@@ -34,7 +40,7 @@ class TestBuildAliasMap:
         rows = [(1001, 1001), (1002, 1001)]
         codes = {1001}
 
-        result = sync_alias.build_alias_map(rows, codes)
+        result = sync_alias.build_alias_map(rows, codes, same_names(rows, codes), {})
 
         assert result == {'1001': [1002]}
 
@@ -42,7 +48,7 @@ class TestBuildAliasMap:
         rows = [(1005, 1001), (1002, 1001), (1005, 1001)]
         codes = {1001}
 
-        result = sync_alias.build_alias_map(rows, codes)
+        result = sync_alias.build_alias_map(rows, codes, same_names(rows, codes), {})
 
         assert result['1001'] == [1002, 1005]
 
@@ -50,7 +56,7 @@ class TestBuildAliasMap:
         rows = [(30000001, 30000000), (2000001, 2000000), (100000001, 100000000)]
         codes = {30000000, 2000000, 100000000}
 
-        result = sync_alias.build_alias_map(rows, codes)
+        result = sync_alias.build_alias_map(rows, codes, same_names(rows, codes), {})
 
         assert list(result.keys()) == ['2000000', '30000000', '100000000']
 
@@ -58,9 +64,75 @@ class TestBuildAliasMap:
         rows = iter([(1002, 1001)])
         codes = {1001}
 
-        result = sync_alias.build_alias_map(rows, codes)
+        result = sync_alias.build_alias_map(rows, codes, same_names([(1002, 1001)]), {})
 
         assert result == {'1001': [1002]}
+
+    def test_drops_a_row_whose_name_differs_from_the_base_card(self):
+        """"Always treated as" cards are different cards, not alternate arts."""
+        rows = [(73819701, 68468459), (68468460, 68468459)]
+        codes = {68468459}
+        names = {
+            68468459: 'Fallen of Albaz',
+            68468460: 'Fallen of Albaz',
+            73819701: 'Fallen of the White Dragon',
+        }
+
+        result = sync_alias.build_alias_map(rows, codes, names, {})
+
+        assert result == {'68468459': [68468460]}
+
+    def test_keeps_a_same_name_alias_even_when_the_code_is_far(self):
+        rows = [(511001275, 1001), (1002, 1001)]
+        codes = {1001}
+        names = {1001: 'Token', 1002: 'Token', 511001275: 'Token'}
+
+        result = sync_alias.build_alias_map(rows, codes, names, {})
+
+        assert result == {'1001': [1002, 511001275]}
+
+    def test_drops_a_same_name_printing_outside_the_official_scope(self):
+        """Anime printings (ot 0x4) can never be played in Genesys."""
+        rows = [(1002, 1001), (511002075, 1001)]
+        codes = {1001}
+        names = {1001: 'Card', 1002: 'Card', 511002075: 'Card'}
+        scopes = {1001: 0x3, 1002: 0x3, 511002075: 0x4}
+
+        result = sync_alias.build_alias_map(rows, codes, names, scopes)
+
+        assert result == {'1001': [1002]}
+
+    @pytest.mark.parametrize('scope', [0x1, 0x2, 0x3, 0x100, 0x103, 0x0])
+    def test_keeps_a_printing_within_ocg_tcg_prerelease(self, scope):
+        rows = [(1002, 1001)]
+        names = {1001: 'Card', 1002: 'Card'}
+
+        result = sync_alias.build_alias_map(rows, {1001}, names, {1002: scope})
+
+        assert result == {'1001': [1002]}
+
+    @pytest.mark.parametrize('scope', [0x4, 0x8, 0x7, 0x203])
+    def test_drops_a_printing_with_any_bit_outside_the_official_scope(self, scope):
+        rows = [(1002, 1001)]
+        names = {1001: 'Card', 1002: 'Card'}
+
+        assert sync_alias.build_alias_map(rows, {1001}, names, {1002: scope}) == {}
+
+    def test_drops_a_row_when_either_name_is_unknown(self):
+        rows = [(1002, 1001), (1003, 1001)]
+        codes = {1001}
+        names = {1001: 'Card', 1002: 'Card'}
+
+        result = sync_alias.build_alias_map(rows, codes, names, {})
+
+        assert result == {'1001': [1002]}
+
+    def test_a_family_with_only_different_name_rows_has_no_entry(self):
+        rows = [(3294539, 80321197)]
+        codes = {80321197}
+        names = {80321197: 'Crimson Blader', 3294539: 'Crimson Blade Dragon'}
+
+        assert sync_alias.build_alias_map(rows, codes, names, {}) == {}
 
 
 class TestDiffAliasMaps:
@@ -106,12 +178,35 @@ class TestDiffAliasMaps:
         assert result['removed_count'] == 1
 
 
-def make_cdb(path: Path, rows: List[Tuple[int, int]]) -> Path:
-    """Create a minimal EDOPro-style card database holding only `datas`."""
+def make_cdb(
+    path: Path,
+    rows: List[Tuple[int, int]],
+    names: Optional[Dict[int, str]] = None,
+    scopes: Optional[Dict[int, int]] = None,
+) -> Path:
+    """
+    Create a minimal EDOPro-style card database holding `datas` and `texts`.
+
+    Args:
+        path: Where to create the database.
+        rows: (id, alias) rows for `datas`.
+        names: id -> name for `texts`. Every id in `rows` not named here gets
+            the name "Card", so printings share their base card's name by default.
+        scopes: id -> `datas.ot` bitmask. Ids not listed here are OCG|TCG (0x3).
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
+    named = {card_id: 'Card' for card_id, _ in rows}
+    named.update(names or {})
     connection = sqlite3.connect(str(path))
-    connection.execute('CREATE TABLE datas (id INTEGER PRIMARY KEY, alias INTEGER)')
-    connection.executemany('INSERT INTO datas (id, alias) VALUES (?, ?)', rows)
+    connection.execute(
+        'CREATE TABLE datas (id INTEGER PRIMARY KEY, alias INTEGER, ot INTEGER)'
+    )
+    connection.execute('CREATE TABLE texts (id INTEGER PRIMARY KEY, name TEXT)')
+    connection.executemany(
+        'INSERT INTO datas (id, alias, ot) VALUES (?, ?, ?)',
+        [(card_id, alias, (scopes or {}).get(card_id, 0x3)) for card_id, alias in rows],
+    )
+    connection.executemany('INSERT INTO texts (id, name) VALUES (?, ?)', named.items())
     connection.commit()
     connection.close()
     return path
@@ -166,6 +261,41 @@ class TestReadAliasRows:
         rows = sync_alias.read_alias_rows(cdb_path)
 
         assert sorted(rows) == [(1001, 0), (1002, 1001), (1003, 1001)]
+
+
+class TestReadNamesFromDirs:
+    """Covers the name overlay (texts.name) used to tell printings from other cards."""
+
+    def test_reads_names_across_databases_and_directories(self, tmp_path: Path):
+        babel = tmp_path / 'BabelCDB'
+        delta = tmp_path / 'DeltaBagooska'
+        make_cdb(babel / 'cards.cdb', [(1001, 0)], {1001: 'Old Name'})
+        make_cdb(babel / 'prerelease.cdb', [(1002, 1001)], {1002: 'Old Name'})
+        make_cdb(delta / 'cards.delta.cdb', [(1001, 0)], {1001: 'New Name'})
+
+        names = sync_alias.read_names_from_dirs([babel, delta])
+
+        assert names == {1001: 'New Name', 1002: 'Old Name'}
+
+    def test_ignores_rush_skills_and_goat_databases(self, tmp_path: Path):
+        babel = tmp_path / 'BabelCDB'
+        make_cdb(babel / 'cards.cdb', [(1001, 0)], {1001: 'Real'})
+        make_cdb(babel / 'cards-rush.cdb', [(1001, 0)], {1001: 'Rush'})
+
+        assert sync_alias.read_names_from_dirs([babel]) == {1001: 'Real'}
+
+
+class TestReadScopesFromDirs:
+    """Covers the `datas.ot` overlay used to drop non-official printings."""
+
+    def test_reads_scopes_across_databases_and_directories(self, tmp_path: Path):
+        babel = tmp_path / 'BabelCDB'
+        delta = tmp_path / 'DeltaBagooska'
+        make_cdb(babel / 'cards.cdb', [(1001, 0), (1002, 1001)], scopes={1002: 0x4})
+        make_cdb(delta / 'cards.delta.cdb', [(1002, 1001)], scopes={1002: 0x3})
+
+        assert sync_alias.read_scopes_from_dirs([babel]) == {1001: 0x3, 1002: 0x4}
+        assert sync_alias.read_scopes_from_dirs([babel, delta]) == {1001: 0x3, 1002: 0x3}
 
 
 class TestReadAliasRowsFromDirs:
@@ -537,6 +667,60 @@ class TestAliasSynchronizer:
 
         written = json.loads((tmp_path / 'alias.json').read_text(encoding='utf-8'))
         assert written == {'83764718': [83764719, 83764720]}
+
+    def test_sync_excludes_an_always_treated_as_card_from_the_family(self, tmp_path: Path):
+        """Fallen of the White Dragon is aliased to Fallen of Albaz but is not its art."""
+        babel = tmp_path / 'BabelCDB'
+        delta = tmp_path / 'DeltaBagooska'
+        make_cdb(
+            babel / 'cards.cdb',
+            [(68468459, 0), (68468460, 68468459), (73819701, 68468459)],
+            {
+                68468459: 'Fallen of Albaz',
+                68468460: 'Fallen of Albaz',
+                73819701: 'Fallen of the White Dragon',
+            },
+        )
+        # The printing lives in another database than its base card.
+        make_cdb(
+            delta / 'prerelease.cdb',
+            [(68468461, 68468459)],
+            {68468461: 'Fallen of Albaz'},
+        )
+
+        cards_path = tmp_path / 'cards.json'
+        cards_path.write_text(json.dumps([{'code': 68468459, 'points': 30}]), encoding='utf-8')
+
+        synchronizer = sync_alias.AliasSynchronizer(
+            cdb_dirs=[babel, delta],
+            cards_path=cards_path,
+            alias_path=tmp_path / 'alias.json',
+            alias_images_dir=tmp_path / 'alias_images',
+        )
+        synchronizer.sync(check_only=False)
+
+        written = json.loads((tmp_path / 'alias.json').read_text(encoding='utf-8'))
+        assert written == {'68468459': [68468460, 68468461]}
+
+    def test_sync_excludes_an_anime_printing_with_the_same_name(self, tmp_path: Path):
+        babel = tmp_path / 'BabelCDB'
+        make_cdb(
+            babel / 'cards.cdb',
+            [(1001, 0), (1002, 1001), (511002075, 1001)],
+            scopes={511002075: 0x4},
+        )
+        cards_path = tmp_path / 'cards.json'
+        cards_path.write_text(json.dumps([{'code': 1001, 'points': 5}]), encoding='utf-8')
+
+        sync_alias.AliasSynchronizer(
+            cdb_dirs=[babel],
+            cards_path=cards_path,
+            alias_path=tmp_path / 'alias.json',
+            alias_images_dir=tmp_path / 'alias_images',
+        ).sync(check_only=False)
+
+        written = json.loads((tmp_path / 'alias.json').read_text(encoding='utf-8'))
+        assert written == {'1001': [1002]}
 
 
 class TestMain:
