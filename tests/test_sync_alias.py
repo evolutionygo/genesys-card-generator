@@ -504,36 +504,42 @@ class TestLoadCardCodes:
 class TestNormalizeListedCodes:
     """Covers folding a listed alias passcode back onto its base card."""
 
+    NAMES = {1001: 'Base Card', 1002: 'Base Card'}
+
     def test_a_listed_alias_code_pulls_in_its_base_card(self):
-        result = sync_alias.normalize_listed_codes({1002}, [(1002, 1001)])
+        result = sync_alias.normalize_listed_codes({1002}, [(1002, 1001)], self.NAMES, {})
 
         assert result == {1001, 1002}
 
     def test_a_listed_base_code_is_unchanged(self):
-        result = sync_alias.normalize_listed_codes({1001}, [(1002, 1001)])
+        result = sync_alias.normalize_listed_codes({1001}, [(1002, 1001)], self.NAMES, {})
 
         assert result == {1001}
 
     def test_a_code_absent_from_the_rows_passes_through(self):
-        result = sync_alias.normalize_listed_codes({7777}, [(1002, 1001)])
+        result = sync_alias.normalize_listed_codes({7777}, [(1002, 1001)], self.NAMES, {})
 
         assert result == {7777}
 
     def test_is_idempotent(self):
         rows = [(1002, 1001)]
 
-        once = sync_alias.normalize_listed_codes({1002}, rows)
-        twice = sync_alias.normalize_listed_codes(once, rows)
+        once = sync_alias.normalize_listed_codes({1002}, rows, self.NAMES, {})
+        twice = sync_alias.normalize_listed_codes(once, rows, self.NAMES, {})
 
         assert once == twice == {1001, 1002}
 
     def test_accepts_any_iterable_of_rows_and_codes(self):
-        result = sync_alias.normalize_listed_codes(iter([1002]), iter([(1002, 1001)]))
+        result = sync_alias.normalize_listed_codes(
+            iter([1002]), iter([(1002, 1001)]), self.NAMES, {}
+        )
 
         assert result == {1001, 1002}
 
     def test_a_base_card_row_with_alias_zero_adds_nothing(self):
-        result = sync_alias.normalize_listed_codes({1001}, [(1001, 0), (1002, 1001)])
+        result = sync_alias.normalize_listed_codes(
+            {1001}, [(1001, 0), (1002, 1001)], self.NAMES, {}
+        )
 
         assert result == {1001}
 
@@ -543,11 +549,37 @@ class TestNormalizeListedCodes:
         code may be any printing's passcode: on 2026-09-23 Monster Reborn moved
         from 83764718 (the base) to 83764719 (one of its alternate arts).
         """
+        names = {83764718: 'Monster Reborn', 83764719: 'Monster Reborn', 83764720: 'Monster Reborn'}
+
         result = sync_alias.normalize_listed_codes(
-            {83764719}, [(83764719, 83764718), (83764720, 83764718)]
+            {83764719}, [(83764719, 83764718), (83764720, 83764718)], names, {}
         )
 
         assert result == {83764718, 83764719}
+
+    def test_a_listed_treated_as_card_does_not_pull_in_the_card_it_is_treated_as(self):
+        """
+        Fallen of the White Dragon is always treated as Fallen of Albaz, so its
+        datas.alias points at Albaz, but it is a different card. Folding it
+        onto Albaz kept Albaz in alias.json, so its stale 30-point image was
+        never unpublished.
+        """
+        names = {68468459: 'Fallen of Albaz', 73819701: 'Fallen of the White Dragon'}
+
+        result = sync_alias.normalize_listed_codes(
+            {73819701}, [(73819701, 68468459)], names, {}
+        )
+
+        assert result == {73819701}
+
+    def test_a_listed_non_official_printing_does_not_pull_in_its_base_card(self):
+        names = {1001: 'Base Card', 511001001: 'Base Card'}
+
+        result = sync_alias.normalize_listed_codes(
+            {511001001}, [(511001001, 1001)], names, {511001001: 0x4}
+        )
+
+        assert result == {511001001}
 
 
 class TestAliasSynchronizer:

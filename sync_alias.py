@@ -63,6 +63,35 @@ OT_PRERELEASE = 0x100
 OT_OFFICIAL = OT_OCG | OT_TCG | OT_PRERELEASE
 
 
+def is_alternate_art(
+    alias_id: int,
+    base_code: int,
+    names: Dict[int, str],
+    scopes: Dict[int, int],
+) -> bool:
+    """
+    Tell whether a `datas.alias` row is a playable alternate-art printing.
+
+    "Always treated as" cards share the alias column but not the name, and
+    anime/illegal printings are rejected by the server. A row whose name or
+    whose base card's name is unknown cannot be verified and does not count.
+
+    Args:
+        alias_id: The printing's id.
+        base_code: The base card its `datas.alias` points to.
+        names: Card name (`texts.name`) per id, across all selected databases.
+        scopes: `datas.ot` bitmask per id; an id absent here has no extra bits.
+
+    Returns:
+        True only for a same-name printing with no bits outside OCG|TCG|prerelease.
+    """
+    printing_name = names.get(alias_id)
+    if printing_name is None or printing_name != names.get(base_code):
+        return False
+
+    return not scopes.get(alias_id, 0) & ~OT_OFFICIAL
+
+
 def build_alias_map(
     rows: Iterable[Tuple[int, int]],
     codes: Iterable[int],
@@ -104,13 +133,7 @@ def build_alias_map(
         if base_code not in known_codes or alias_id == base_code:
             continue
 
-        # "Always treated as" cards share the alias column but not the name.
-        printing_name = names.get(alias_id)
-        if printing_name is None or printing_name != names.get(base_code):
-            continue
-
-        # Anime/illegal printings are rejected by the server.
-        if scopes.get(alias_id, 0) & ~OT_OFFICIAL:
+        if not is_alternate_art(alias_id, base_code, names, scopes):
             continue
 
         grouped.setdefault(base_code, set()).add(alias_id)
@@ -369,10 +392,18 @@ def find_orphan_alias_images(images_dir, alias_map: Dict[str, Iterable]) -> List
 
 
 def normalize_listed_codes(
-    codes: Iterable[int], rows: Iterable[Tuple[int, int]]
+    codes: Iterable[int],
+    rows: Iterable[Tuple[int, int]],
+    names: Dict[int, str],
+    scopes: Dict[int, int],
 ) -> Set[int]:
     """
     Add the base card of every listed code that is itself an alternate art.
+
+    Only rows that pass `is_alternate_art` fold. Fallen of the White Dragon
+    (73819701) has `datas.alias` 68468459 because it is always treated as
+    Fallen of Albaz, but it is another card: folding it kept Albaz in
+    alias.json, so Albaz's stale badge was never unpublished.
 
     Konami publishes the Genesys list by card name, and evolution-assets
     resolves those names to passcodes through the ygoprodeck API, which may
@@ -390,18 +421,26 @@ def normalize_listed_codes(
         rows: Iterable of (id, alias) integer pairs from `datas`, where `id` is
             an alternate-art printing and `alias` is its base card (0 for a
             base card, which is ignored).
+        names: Card name (`texts.name`) per id, across all selected databases.
+        scopes: `datas.ot` bitmask per id; an id absent here has no extra bits.
 
     Returns:
         A set with every input code plus the base card of any input code that
-        appears as an alternate-art printing.
+        is an alternate-art printing.
     """
     listed = {int(code) for code in codes}
     normalized = set(listed)
 
     for alias_id, base_code in rows:
+        alias_id = int(alias_id)
+        base_code = int(base_code)
+
         # Alias 0 marks a base card, which has no family to fold onto.
-        if int(base_code) != 0 and int(alias_id) in listed:
-            normalized.add(int(base_code))
+        if base_code == 0 or alias_id not in listed:
+            continue
+
+        if is_alternate_art(alias_id, base_code, names, scopes):
+            normalized.add(base_code)
 
     return normalized
 
@@ -487,12 +526,13 @@ class AliasSynchronizer:
         rows = read_alias_rows_from_dirs(self.cdb_dirs)
         current = self.load_current_alias_map()
 
-        # A listed code may be an alternate art rather than the base card, so
-        # fold each one back onto its family before grouping.
-        codes = normalize_listed_codes(listed_codes, rows)
-
         names = read_names_from_dirs(self.cdb_dirs)
         scopes = read_scopes_from_dirs(self.cdb_dirs)
+
+        # A listed code may be an alternate art rather than the base card, so
+        # fold each one back onto its family before grouping.
+        codes = normalize_listed_codes(listed_codes, rows, names, scopes)
+
         derived = build_alias_map(rows, codes, names, scopes)
         diff = diff_alias_maps(current, derived)
         orphans = find_orphan_alias_images(self.alias_images_dir, derived)
