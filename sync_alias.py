@@ -9,7 +9,12 @@ new alternate-art printings silently shipped with no badge at all.
 The images target EDOPro only, so the rule is: an alternate art is any code
 that EDOPro's card databases declare with `datas.alias` pointing to a Genesys
 base card. A row `(id, alias)` means `id` is an alternate-art printing of the
-base card `alias`.
+base card `alias` - but only when both carry the same name (`texts.name`).
+`datas.alias` also encodes "This card is always treated as X", which is a
+different card with its own name (e.g. Fallen of the White Dragon is aliased to
+Fallen of Albaz) and must not receive the base card's badge. Printings outside
+the official scope (`datas.ot` bits other than OCG 0x1, TCG 0x2, prerelease
+0x100; e.g. anime 0x4) are rejected by the Genesys server and are skipped.
 
 EDOPro's databases come from two Project Ignis repositories:
 
@@ -24,6 +29,8 @@ time, so databases are discovered by globbing, never listed by hand.
 Overlay order: directories are read in the order given, files within a
 directory in sorted name order, and a later row for the same `id` overwrites
 an earlier one. Pass BabelCDB first and DeltaBagooska second so updates win.
+Names are overlaid the same way across every selected database, so a printing
+and its base card may live in different files.
 
 The derivation is authoritative: an id EDOPro does not declare is removed from
 alias.json, and its committed image in `alias_images/` is deleted with it.
@@ -48,18 +55,38 @@ import genesys_source
 # Database file names containing any of these belong to another game or format.
 EXCLUDED_DATABASE_MARKERS = ('rush', 'skills', 'goat')
 
+# `datas.ot` scope bits. The Genesys server only accepts OFFICIAL printings
+# (variant <= OCG_TCG); anime (0x4) and illegal (0x8) printings are rejected.
+OT_OCG = 0x1
+OT_TCG = 0x2
+OT_PRERELEASE = 0x100
+OT_OFFICIAL = OT_OCG | OT_TCG | OT_PRERELEASE
+
 
 def build_alias_map(
-    rows: Iterable[Tuple[int, int]], codes: Iterable[int]
+    rows: Iterable[Tuple[int, int]],
+    codes: Iterable[int],
+    names: Dict[int, str],
+    scopes: Dict[int, int],
 ) -> Dict[str, List[int]]:
     """
     Build the alias map declared by the card database.
+
+    A row is an alternate-art printing only when its name equals the name of
+    the base card it points to. A different name means "always treated as",
+    which is another card; a row whose name or whose base card's name is
+    unknown cannot be verified and is dropped too. A printing whose `datas.ot`
+    has any bit outside OCG|TCG|prerelease (anime, illegal) is dropped as well:
+    the server rejects it, so it can never be played. Code distance is deliberately
+    not used: far-code aliases with the same name (tokens, 511001275) are real.
 
     Args:
         rows: Iterable of (id, alias) integer pairs from `datas`, where `id` is
             an alternate-art printing and `alias` is the base card. Rows with
             alias 0 (base cards) never match a Genesys code and are ignored.
         codes: The Genesys base card codes from the Genesys list.
+        names: Card name (`texts.name`) per id, across all selected databases.
+        scopes: `datas.ot` bitmask per id; an id absent here has no extra bits.
 
     Returns:
         A dict of base card code (as a string) to its alternate-art codes,
@@ -75,6 +102,15 @@ def build_alias_map(
 
         # Only Genesys base cards matter, and a printing is never its own alias.
         if base_code not in known_codes or alias_id == base_code:
+            continue
+
+        # "Always treated as" cards share the alias column but not the name.
+        printing_name = names.get(alias_id)
+        if printing_name is None or printing_name != names.get(base_code):
+            continue
+
+        # Anime/illegal printings are rejected by the server.
+        if scopes.get(alias_id, 0) & ~OT_OFFICIAL:
             continue
 
         grouped.setdefault(base_code, set()).add(alias_id)
@@ -207,6 +243,91 @@ def read_alias_rows_from_dirs(cdb_dirs: Iterable) -> List[Tuple[int, int]]:
                 final_alias[card_id] = alias
 
     return sorted(final_alias.items())
+
+
+def read_names(cdb_path) -> Dict[int, str]:
+    """
+    Read every (id, name) pair from an EDOPro card database.
+
+    Args:
+        cdb_path: Path to a `.cdb` SQLite database.
+
+    Returns:
+        A dict of card id to `texts.name`; rows without a name are skipped.
+    """
+    connection = sqlite3.connect(str(Path(cdb_path)))
+    try:
+        cursor = connection.execute('SELECT id, name FROM texts')
+        return {int(card_id): name for card_id, name in cursor if name}
+    finally:
+        connection.close()
+
+
+def read_names_from_dirs(cdb_dirs: Iterable) -> Dict[int, str]:
+    """
+    Read the name overlay of every EDOPro database across directories.
+
+    Uses the same database selection and overlay order as
+    `read_alias_rows_from_dirs`, so a printing can be compared with a base card
+    that lives in a different database or directory.
+
+    Args:
+        cdb_dirs: Database directories, e.g. BabelCDB then DeltaBagooska.
+
+    Returns:
+        The final name per card id.
+    """
+    final_names: Dict[int, str] = {}
+
+    for cdb_dir in cdb_dirs:
+        directory = Path(cdb_dir)
+        names = [path.name for path in directory.iterdir() if path.is_file()]
+        for name in select_edopro_databases(names):
+            final_names.update(read_names(directory / name))
+
+    return final_names
+
+
+def read_scopes(cdb_path) -> Dict[int, int]:
+    """
+    Read every (id, ot) pair from an EDOPro card database.
+
+    Args:
+        cdb_path: Path to a `.cdb` SQLite database.
+
+    Returns:
+        A dict of card id to its `datas.ot` scope bitmask (NULL reads as 0).
+    """
+    connection = sqlite3.connect(str(Path(cdb_path)))
+    try:
+        cursor = connection.execute('SELECT id, ot FROM datas')
+        return {int(card_id): int(ot or 0) for card_id, ot in cursor}
+    finally:
+        connection.close()
+
+
+def read_scopes_from_dirs(cdb_dirs: Iterable) -> Dict[int, int]:
+    """
+    Read the `datas.ot` overlay of every EDOPro database across directories.
+
+    Uses the same database selection and overlay order as
+    `read_alias_rows_from_dirs`.
+
+    Args:
+        cdb_dirs: Database directories, e.g. BabelCDB then DeltaBagooska.
+
+    Returns:
+        The final scope bitmask per card id.
+    """
+    final_scopes: Dict[int, int] = {}
+
+    for cdb_dir in cdb_dirs:
+        directory = Path(cdb_dir)
+        names = [path.name for path in directory.iterdir() if path.is_file()]
+        for name in select_edopro_databases(names):
+            final_scopes.update(read_scopes(directory / name))
+
+    return final_scopes
 
 
 def find_orphan_alias_images(images_dir, alias_map: Dict[str, Iterable]) -> List[Path]:
@@ -370,7 +491,9 @@ class AliasSynchronizer:
         # fold each one back onto its family before grouping.
         codes = normalize_listed_codes(listed_codes, rows)
 
-        derived = build_alias_map(rows, codes)
+        names = read_names_from_dirs(self.cdb_dirs)
+        scopes = read_scopes_from_dirs(self.cdb_dirs)
+        derived = build_alias_map(rows, codes, names, scopes)
         diff = diff_alias_maps(current, derived)
         orphans = find_orphan_alias_images(self.alias_images_dir, derived)
         alias_json_in_sync = diff['in_sync']
