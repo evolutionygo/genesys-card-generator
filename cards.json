@@ -150,6 +150,11 @@
     "code": 3280747
   },
   {
+    "name": "Crimson Blade Dragon",
+    "points": 10,
+    "code": 3294539
+  },
+  {
     "name": "The Phantom Knights' Rank-Up-Magic Launch",
     "points": 1,
     "code": 3298689
@@ -2630,11 +2635,6 @@
     "code": 68462976
   },
   {
-    "name": "Fallen of the White Dragon",
-    "points": 30,
-    "code": 68468459
-  },
-  {
     "name": "Mind Drain",
     "points": 100,
     "code": 68937720
@@ -2828,6 +2828,11 @@
     "name": "Ghost Belle & Haunted Mansion",
     "points": 6,
     "code": 73642296
+  },
+  {
+    "name": "Fallen of the White Dragon",
+    "points": 30,
+    "code": 73819701
   },
   {
     "name": "Tearlaments Reinoheart",
@@ -3058,11 +3063,6 @@
     "name": "\"A Case for K9\"",
     "points": 15,
     "code": 80181649
-  },
-  {
-    "name": "Crimson Blade Dragon",
-    "points": 10,
-    "code": 80321197
   },
   {
     "name": "Wishes for Eyes of Blue",
